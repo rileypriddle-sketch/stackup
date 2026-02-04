@@ -62,7 +62,7 @@ export default function Home() {
     setError("");
     setStatus("Opening wallet...");
     try {
-      let result = await connect({ network: "testnet" });
+      const result = await connect({ network: "testnet" });
       let nextAddress =
         result.addresses?.find((entry) => entry.address.startsWith("ST"))
           ?.address ?? "";
