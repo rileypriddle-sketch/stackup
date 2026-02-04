@@ -1,8 +1,4 @@
 import { defineConfig } from "vitest/config";
-import {
-  getClarinetVitestsArgv,
-  vitestSetupFilePath,
-} from "@stacks/clarinet-sdk/vitest";
 
 export default defineConfig({
   test: {
@@ -12,9 +8,8 @@ export default defineConfig({
       threads: { singleThread: true },
       forks: { singleFork: true },
     },
-    setupFiles: [vitestSetupFilePath],
-    environmentOptions: {
-      clarinet: getClarinetVitestsArgv(),
-    },
+    setupFiles: [
+      "node_modules/@stacks/clarinet-sdk/vitest-helpers/src/vitest.setup.ts",
+    ],
   },
 });
