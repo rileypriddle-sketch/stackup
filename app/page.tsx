@@ -212,7 +212,7 @@ export default function Home() {
           <div className={styles.brand}>
             <img
               className={styles.logo}
-              src="/logo/logo.png"
+              src={theme === "dark" ? "/logo/logo-dark.png" : "/logo/logo-light.png"}
               alt="StackUp logo"
             />
             <div className={styles.brandText}>Daily streaks on Stacks.</div>

@@ -28,9 +28,10 @@
 }
 
 .logo {
-  width: clamp(80px, 10vw, 140px);
-  height: auto;
+  width: clamp(100px, 12vw, 160px);
+  height: clamp(40px, 6vw, 90px);
   object-fit: contain;
+  display: block;
 }
 
 .brandText {
