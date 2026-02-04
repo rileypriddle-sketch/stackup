@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import * as StacksConnect from "@stacks/connect";
 import { STACKS_MAINNET } from "@stacks/network";
@@ -17,15 +18,31 @@ const APP_ICON_PATH = "/icons/icon.png";
 const CONTRACT_ADDRESS = "STXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
 const CONTRACT_NAME = "streak";
 
+type StxAddress = { mainnet?: string; testnet?: string };
+type UserProfile = { stxAddress?: StxAddress };
+type UserData = { profile?: UserProfile };
+
+type ConnectModule = typeof StacksConnect & {
+  showConnect?: (options: StacksConnect.AuthOptions) => void;
+  showBlockstackConnect?: (options: StacksConnect.AuthOptions) => void;
+  openContractCall?: (options: StacksConnect.ContractCallOptions) => void;
+  showContractCall?: (options: StacksConnect.ContractCallOptions) => void;
+  default?: {
+    showConnect?: (options: StacksConnect.AuthOptions) => void;
+    openContractCall?: (options: StacksConnect.ContractCallOptions) => void;
+  };
+};
+
 export default function Home() {
+  const connectModule = StacksConnect as ConnectModule;
   const showConnectFn =
-    (StacksConnect as any).showConnect ??
-    (StacksConnect as any).showBlockstackConnect ??
-    (StacksConnect as any).default?.showConnect;
+    connectModule.showConnect ??
+    connectModule.showBlockstackConnect ??
+    connectModule.default?.showConnect;
   const openContractCallFn =
-    (StacksConnect as any).openContractCall ??
-    (StacksConnect as any).showContractCall ??
-    (StacksConnect as any).default?.openContractCall;
+    connectModule.openContractCall ??
+    connectModule.showContractCall ??
+    connectModule.default?.openContractCall;
 
   const userSession = useMemo(
     () =>
@@ -34,7 +51,7 @@ export default function Home() {
       }),
     []
   );
-  const [userData, setUserData] = useState<any | null>(null);
+  const [userData, setUserData] = useState<UserData | null>(null);
   const [status, setStatus] = useState<string>("Not connected");
   const [error, setError] = useState<string>("");
   const [lastTxId, setLastTxId] = useState<string>("");
@@ -149,16 +166,22 @@ export default function Home() {
         }),
       ]);
 
-      const streakValue = cvToValue(streakCV);
-      const lastDayValue = cvToValue(lastDayCV);
-      const badgeValue = cvToValue(badgeCV);
-      setStreak(typeof streakValue === "bigint" ? Number(streakValue) : streakValue);
+      const streakValue = cvToValue(streakCV) as unknown;
+      const lastDayValue = cvToValue(lastDayCV) as unknown;
+      const badgeValue = cvToValue(badgeCV) as unknown;
+      setStreak(
+        typeof streakValue === "bigint"
+          ? Number(streakValue)
+          : (streakValue as number)
+      );
       setLastClaimDay(
-        typeof lastDayValue === "bigint" ? Number(lastDayValue) : lastDayValue
+        typeof lastDayValue === "bigint"
+          ? Number(lastDayValue)
+          : (lastDayValue as number)
       );
       setHasBadge(Boolean(badgeValue));
       setStatus("On-chain data refreshed");
-    } catch (err) {
+    } catch {
       setError("Failed to fetch on-chain data.");
     } finally {
       setIsLoading(false);
@@ -199,7 +222,7 @@ export default function Home() {
           setStatus("Claim cancelled");
         },
       });
-    } catch (err) {
+    } catch {
       setError("Failed to open contract call.");
       setStatus("Claim failed");
     }
@@ -210,10 +233,15 @@ export default function Home() {
       <div className={styles.shell}>
         <header className={styles.header}>
           <div className={styles.brand}>
-            <img
+            <Image
               className={styles.logo}
               src={theme === "dark" ? "/logo/logo-dark.png" : "/logo/logo-light.png"}
               alt="StackUp logo"
+              width={400}
+              height={140}
+              sizes="(max-width: 720px) 160px, 200px"
+              priority
+              style={{ width: "100%", height: "auto" }}
             />
             <div className={styles.brandText}>Daily streaks on Stacks.</div>
           </div>
