@@ -1,0 +1,9 @@
+[project]
+name = "stackup"
+description = "Daily streak + 7-day badge"
+telemetry = false
+
+[contracts.streak]
+path = "contracts/streak.clar"
+clarity_version = 4
+epoch = "latest"

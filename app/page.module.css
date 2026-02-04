@@ -1,15 +1,15 @@
 .page {
   min-height: 100vh;
-  padding: 0px 24px 64px;
+  padding: 24px 24px 72px;
 }
 
 .shell {
   width: 100%;
-  max-width: 1120px;
+  max-width: 1140px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 28px;
 }
 
 .header {
@@ -28,27 +28,27 @@
 }
 
 .logo {
-  width: clamp(90px, 13vw, 160px);
+  width: clamp(80px, 10vw, 140px);
   height: auto;
   object-fit: contain;
 }
 
 .brandText {
-  font-size: 14px;
-  letter-spacing: 0.08em;
+  font-size: 12px;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text);
 }
 
 .hero {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 28px;
   align-items: center;
 }
 
 .headline {
-  font-size: clamp(32px, 4vw, 52px);
+  font-size: clamp(36px, 4.2vw, 56px);
   font-weight: 700;
   line-height: 1.05;
   letter-spacing: -0.02em;
@@ -66,6 +66,13 @@
   max-width: 520px;
 }
 
+.heroActions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+
 .panelGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -74,9 +81,9 @@
 
 .panel {
   background: var(--panel);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 24px;
-  padding: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 26px;
+  padding: 26px;
   box-shadow: 0 24px 60px var(--shadow);
   backdrop-filter: blur(18px);
 }
@@ -90,7 +97,7 @@
 }
 
 .panelHeader h2 {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
 }
 
@@ -123,7 +130,7 @@
   font-family: var(--font-mono), "JetBrains Mono", monospace;
   color: var(--text);
   font-size: 13px;
-  background: rgba(0, 0, 0, 0.35);
+  background: rgba(0, 0, 0, 0.28);
   padding: 10px 12px;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -195,7 +202,7 @@
 .badge {
   padding: 10px 14px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.12);
   font-size: 14px;
   color: var(--muted);
@@ -213,6 +220,10 @@
 
 .warn {
   color: var(--warning);
+}
+
+.success {
+  color: var(--accent);
 }
 
 .danger {

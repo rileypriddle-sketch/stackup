@@ -4,10 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import * as StacksConnect from "@stacks/connect";
 import { STACKS_MAINNET } from "@stacks/network";
 import {
-  callReadOnlyFunction,
   cvToValue,
-  standardPrincipalCV,
-} from "@stacks/transactions-v6";
+  fetchCallReadOnlyFunction,
+  principalCV,
+} from "@stacks/transactions";
 import styles from "./page.module.css";
 
 const APP_NAME = "StackUp";
@@ -18,6 +18,15 @@ const CONTRACT_ADDRESS = "STXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
 const CONTRACT_NAME = "streak";
 
 export default function Home() {
+  const showConnectFn =
+    (StacksConnect as any).showConnect ??
+    (StacksConnect as any).showBlockstackConnect ??
+    (StacksConnect as any).default?.showConnect;
+  const openContractCallFn =
+    (StacksConnect as any).openContractCall ??
+    (StacksConnect as any).showContractCall ??
+    (StacksConnect as any).default?.openContractCall;
+
   const userSession = useMemo(
     () =>
       new StacksConnect.UserSession({
@@ -31,6 +40,7 @@ export default function Home() {
   const [lastTxId, setLastTxId] = useState<string>("");
   const [streak, setStreak] = useState<number | null>(null);
   const [lastClaimDay, setLastClaimDay] = useState<number | null>(null);
+  const [hasBadge, setHasBadge] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
 
@@ -70,7 +80,12 @@ export default function Home() {
   const connectWallet = () => {
     setError("");
     setStatus("Opening wallet...");
-    StacksConnect.showConnect({
+    if (!showConnectFn) {
+      setError("Wallet connect is unavailable. Check @stacks/connect install.");
+      setStatus("Not connected");
+      return;
+    }
+    showConnectFn({
       userSession,
       appDetails: {
         name: APP_NAME,
@@ -107,20 +122,28 @@ export default function Home() {
     const sender = address || CONTRACT_ADDRESS;
 
     try {
-      const [streakCV, lastDayCV] = await Promise.all([
-        callReadOnlyFunction({
+      const [streakCV, lastDayCV, badgeCV] = await Promise.all([
+        fetchCallReadOnlyFunction({
           contractAddress: CONTRACT_ADDRESS,
           contractName: CONTRACT_NAME,
           functionName: "get-streak",
-          functionArgs: [standardPrincipalCV(sender)],
+          functionArgs: [principalCV(sender)],
           network: STACKS_MAINNET,
           senderAddress: sender,
         }),
-        callReadOnlyFunction({
+        fetchCallReadOnlyFunction({
           contractAddress: CONTRACT_ADDRESS,
           contractName: CONTRACT_NAME,
           functionName: "get-last-claim-day",
-          functionArgs: [standardPrincipalCV(sender)],
+          functionArgs: [principalCV(sender)],
+          network: STACKS_MAINNET,
+          senderAddress: sender,
+        }),
+        fetchCallReadOnlyFunction({
+          contractAddress: CONTRACT_ADDRESS,
+          contractName: CONTRACT_NAME,
+          functionName: "has-badge",
+          functionArgs: [principalCV(sender)],
           network: STACKS_MAINNET,
           senderAddress: sender,
         }),
@@ -128,10 +151,12 @@ export default function Home() {
 
       const streakValue = cvToValue(streakCV);
       const lastDayValue = cvToValue(lastDayCV);
+      const badgeValue = cvToValue(badgeCV);
       setStreak(typeof streakValue === "bigint" ? Number(streakValue) : streakValue);
       setLastClaimDay(
         typeof lastDayValue === "bigint" ? Number(lastDayValue) : lastDayValue
       );
+      setHasBadge(Boolean(badgeValue));
       setStatus("On-chain data refreshed");
     } catch (err) {
       setError("Failed to fetch on-chain data.");
@@ -151,7 +176,12 @@ export default function Home() {
     setStatus("Submitting claim...");
 
     try {
-      StacksConnect.openContractCall({
+      if (!openContractCallFn) {
+        setError("Contract call is unavailable. Check @stacks/connect install.");
+        setStatus("Claim failed");
+        return;
+      }
+      openContractCallFn({
         contractAddress: CONTRACT_ADDRESS,
         contractName: CONTRACT_NAME,
         functionName: "claim",
@@ -212,13 +242,25 @@ export default function Home() {
         <section className={styles.hero}>
           <div>
             <div className={styles.headline}>
-              Keep the streak. <span>Earn the badge.</span>
+              Build the streak.
+              <span> Claim daily.</span>
             </div>
             <p className={styles.lede}>
-              StackUp Nice tracks your daily claim on Stacks mainnet. Claim once
-              per day to build momentum and unlock badge NFTs at milestone
-              streaks.
+              StackUp tracks your daily claim on Stacks mainnet. Claim once per
+              day to build momentum and unlock your 7-day NFT badge.
             </p>
+            <div className={styles.heroActions}>
+              <button className={styles.button} onClick={claimStreak}>
+                Claim Now
+              </button>
+              <button
+                className={`${styles.button} ${styles.ghostButton}`}
+                onClick={fetchOnChain}
+                disabled={isLoading}
+              >
+                {isLoading ? "Refreshing..." : "Refresh On-Chain"}
+              </button>
+            </div>
           </div>
           <div className={styles.panel}>
             <div className={styles.panelHeader}>
@@ -265,18 +307,6 @@ export default function Home() {
                   {CONTRACT_ADDRESS}.{CONTRACT_NAME}
                 </code>
               </div>
-              <div className={styles.actions}>
-                <button className={styles.button} onClick={claimStreak}>
-                  Claim Now
-                </button>
-                <button
-                  className={`${styles.button} ${styles.ghostButton}`}
-                  onClick={fetchOnChain}
-                  disabled={isLoading}
-                >
-                  {isLoading ? "Refreshing..." : "Refresh On-Chain"}
-                </button>
-              </div>
               <div className={styles.footnote}>
                 <span className={styles.warn}>Heads up:</span> the contract
                 address above is a placeholder. Update it after deployment.
@@ -286,27 +316,32 @@ export default function Home() {
 
           <div className={styles.panel}>
             <div className={styles.panelHeader}>
-              <h2>Badge milestones</h2>
+              <h2>Badge milestone</h2>
               <span className={styles.pill}>NFT</span>
             </div>
             <div className={styles.stack}>
               <div className={styles.badgeRow}>
                 <div className={styles.badge}>
-                  <strong>3</strong> days
+                  <strong>7</strong> day streak badge
                 </div>
-                <div className={styles.badge}>
-                  <strong>7</strong> days
-                </div>
-                <div className={styles.badge}>
-                  <strong>14</strong> days
-                </div>
-                <div className={styles.badge}>
-                  <strong>30</strong> days
-                </div>
+              </div>
+              <div className={styles.status}>
+                Badge status:{" "}
+                <span
+                  className={
+                    hasBadge === null
+                      ? ""
+                      : hasBadge
+                      ? styles.success
+                      : styles.warn
+                  }
+                >
+                  {hasBadge === null ? "Not loaded" : hasBadge ? "Earned" : "Not yet"}
+                </span>
               </div>
               <div className={styles.footnote}>
                 Badge mints are triggered by the on-chain <code>claim</code>{" "}
-                function once your streak hits a milestone.
+                function once your streak hits 7.
               </div>
             </div>
           </div>
