@@ -27,7 +27,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "typescript": "^5",
-    "vitest": "^4.0.0",
-    "vitest-environment-clarinet": "3.0.2"
+    "vitest": "^3.2.4",
+    "vitest-environment-clarinet": "^2.3.2"
   }
 }

@@ -33,6 +33,12 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# local settings (keep mnemonics private)
+settings/*.toml
+
+# clarinet deployments output
+deployments/
+
 # vercel
 .vercel
 

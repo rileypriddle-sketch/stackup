@@ -12,7 +12,7 @@
 (define-non-fungible-token badge uint)
 
 (define-read-only (get-current-day)
-  (/ block-height BLOCKS_PER_DAY)
+  (/ stacks-block-height BLOCKS_PER_DAY)
 )
 
 (define-read-only (get-streak (user principal))
@@ -46,41 +46,69 @@
 (define-public (claim)
   (let (
         (current-day (get-current-day))
-        (last-day (default-to u0 (map-get? last-claim-day tx-sender)))
+        (last-day-opt (map-get? last-claim-day tx-sender))
         (current-streak (default-to u0 (map-get? streak tx-sender)))
        )
-    (if (is-eq current-day last-day)
-        (err ERR_ALREADY_CLAIMED)
-        (let (
-              (new-streak (if (is-eq (+ last-day u1) current-day)
-                              (+ current-streak u1)
-                              u1))
-             )
-          (map-set last-claim-day tx-sender current-day)
-          (map-set streak tx-sender new-streak)
-          (let ((badge-result (if (is-eq new-streak BADGE_STREAK)
-                                  (mint-badge tx-sender)
-                                  (ok none))))
-            (match badge-result
-              token-id
-              (ok {
-                streak: new-streak,
-                day: current-day,
-                badge-minted: (is-some token-id),
-                token-id: token-id
-              })
-              err-code
-              (if (is-eq err-code ERR_BADGE_ALREADY_MINTED)
-                  (ok {
-                    streak: new-streak,
-                    day: current-day,
-                    badge-minted: false,
-                    token-id: none
-                  })
-                  (err err-code))
+    (match last-day-opt last-day
+      (if (is-eq current-day last-day)
+          (err ERR_ALREADY_CLAIMED)
+          (let (
+                (new-streak (if (is-eq (+ last-day u1) current-day)
+                                (+ current-streak u1)
+                                u1))
+               )
+            (map-set last-claim-day tx-sender current-day)
+            (map-set streak tx-sender new-streak)
+            (let ((badge-result (if (is-eq new-streak BADGE_STREAK)
+                                    (mint-badge tx-sender)
+                                    (ok none))))
+              (match badge-result
+                token-id
+                (ok {
+                  streak: new-streak,
+                  day: current-day,
+                  badge-minted: (is-some token-id),
+                  token-id: token-id
+                })
+                err-code
+                (if (is-eq err-code ERR_BADGE_ALREADY_MINTED)
+                    (ok {
+                      streak: new-streak,
+                      day: current-day,
+                      badge-minted: false,
+                      token-id: none
+                    })
+                    (err err-code))
+              )
             )
           )
+      )
+      (let ((new-streak u1))
+        (map-set last-claim-day tx-sender current-day)
+        (map-set streak tx-sender new-streak)
+        (let ((badge-result (if (is-eq new-streak BADGE_STREAK)
+                                (mint-badge tx-sender)
+                                (ok none))))
+          (match badge-result
+            token-id
+            (ok {
+              streak: new-streak,
+              day: current-day,
+              badge-minted: (is-some token-id),
+              token-id: token-id
+            })
+            err-code
+            (if (is-eq err-code ERR_BADGE_ALREADY_MINTED)
+                (ok {
+                  streak: new-streak,
+                  day: current-day,
+                  badge-minted: false,
+                  token-id: none
+                })
+                (err err-code))
+          )
         )
+      )
     )
   )
 )

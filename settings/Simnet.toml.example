@@ -1,0 +1,7 @@
+[network]
+name = "simnet"
+node_rpc_address = "http://localhost:3999"
+deployment_fee_rate = 10
+
+[accounts.deployer]
+mnemonic = "replace with your simnet mnemonic"
