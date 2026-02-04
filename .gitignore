@@ -35,6 +35,7 @@ yarn-error.log*
 
 # local settings (keep mnemonics private)
 settings/*.toml
+!settings/Devnet.toml
 
 # clarinet deployments output
 deployments/
