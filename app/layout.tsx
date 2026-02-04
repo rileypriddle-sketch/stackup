@@ -13,7 +13,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "StackUp Nice",
+  title: "StackUp",
   description: "Daily streaks and badge rewards on Stacks.",
   icons: {
     icon: [

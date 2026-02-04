@@ -10,7 +10,7 @@ import {
 } from "@stacks/transactions-v6";
 import styles from "./page.module.css";
 
-const APP_NAME = "StackUp Nice";
+const APP_NAME = "StackUp";
 const APP_ICON_PATH = "/icons/icon.png";
 
 // TODO: replace with your deployed contract details before mainnet launch.
@@ -183,7 +183,7 @@ export default function Home() {
             <img
               className={styles.logo}
               src="/logo/logo.png"
-              alt="StackUp Nice logo"
+              alt="StackUp logo"
             />
             <div className={styles.brandText}>Daily streaks on Stacks.</div>
           </div>
