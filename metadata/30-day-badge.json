@@ -1,10 +1,9 @@
 {
   "name": "StackUp 30-Day Streak",
   "description": "Awarded for maintaining a 30-day claim streak on StackUp.",
-  "image": "ipfs://REPLACE_WITH_IMAGE_CID",
+  "image": "ipfs://bafybeihhqw32h76juqdagoqspcm5e7lyin34v3qs6t474qiiqk74b7jghu",
   "attributes": [
     { "trait_type": "milestone_days", "value": 30 },
     { "trait_type": "app", "value": "StackUp" }
   ]
 }
-

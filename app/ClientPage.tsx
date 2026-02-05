@@ -34,6 +34,13 @@ const BADGE_MILESTONES = [
   { kind: 30, label: "30 day" },
 ] as const;
 
+const BADGE_ASSETS: Record<number, string> = {
+  3: "/badges/3-day-streak.png",
+  7: "/badges/7-day-streak.png",
+  14: "/badges/14-day-streak.png",
+  30: "/badges/30-day-streak.png",
+};
+
 export default function ClientPage() {
   const [walletAddress, setWalletAddress] = useState<string>("");
   const [status, setStatus] = useState<string>("Not connected");
@@ -48,6 +55,10 @@ export default function ClientPage() {
     Record<number, number | null>
   >({});
   const [badgeUris, setBadgeUris] = useState<Record<number, string | null>>({});
+  const [customKind, setCustomKind] = useState<string>("");
+  const [customHas, setCustomHas] = useState<boolean | null>(null);
+  const [customTokenId, setCustomTokenId] = useState<number | null>(null);
+  const [customUri, setCustomUri] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
 
@@ -292,6 +303,101 @@ export default function ClientPage() {
     }
   };
 
+  const mintBadgeKind = async (kind: number) => {
+    setError("");
+    setStatus(`Minting ${kind}-day badge...`);
+
+    try {
+      openContractCall({
+        contractAddress: CONTRACT_ADDRESS,
+        contractName: CONTRACT_NAME,
+        functionName: "mint-badge-kind",
+        functionArgs: [uintCV(kind)],
+        network: STACKS_NETWORK_OBJ,
+        appDetails: {
+          name: APP_NAME,
+          icon: new URL(APP_ICON_PATH, window.location.origin).toString(),
+        },
+        onFinish: (data) => {
+          setLastTxId(data.txId ?? "");
+          setStatus("Mint submitted");
+          // Refresh shortly after submit so the UI catches up once confirmed.
+          setTimeout(() => {
+            fetchOnChain();
+          }, 1500);
+        },
+        onCancel: () => {
+          setStatus("Mint cancelled");
+        },
+      });
+    } catch {
+      setError("Failed to open mint transaction.");
+      setStatus("Mint failed");
+    }
+  };
+
+  const fetchCustomKind = async () => {
+    if (badgeSupport !== "v2") {
+      setError("Custom milestones require the V2 contract.");
+      return;
+    }
+
+    const kind = Number(customKind);
+    if (!Number.isFinite(kind) || kind <= 0) {
+      setError("Enter a valid milestone number (e.g. 60).");
+      return;
+    }
+
+    setIsLoading(true);
+    setError("");
+
+    const sender = address || CONTRACT_ADDRESS;
+
+    try {
+      const [hasCV, tokenCV, uriCV] = await Promise.all([
+        fetchCallReadOnlyFunction({
+          contractAddress: CONTRACT_ADDRESS,
+          contractName: CONTRACT_NAME,
+          functionName: "has-badge-kind",
+          functionArgs: [principalCV(sender), uintCV(kind)],
+          network: STACKS_NETWORK_OBJ,
+          senderAddress: sender,
+        }),
+        fetchCallReadOnlyFunction({
+          contractAddress: CONTRACT_ADDRESS,
+          contractName: CONTRACT_NAME,
+          functionName: "get-badge-token-id",
+          functionArgs: [principalCV(sender), uintCV(kind)],
+          network: STACKS_NETWORK_OBJ,
+          senderAddress: sender,
+        }),
+        fetchCallReadOnlyFunction({
+          contractAddress: CONTRACT_ADDRESS,
+          contractName: CONTRACT_NAME,
+          functionName: "get-badge-uri",
+          functionArgs: [uintCV(kind)],
+          network: STACKS_NETWORK_OBJ,
+          senderAddress: sender,
+        }),
+      ]);
+
+      setCustomHas(Boolean(cvToValue(hasCV)));
+      const token = cvToValue(tokenCV) as unknown;
+      if (token === null) setCustomTokenId(null);
+      else if (typeof token === "bigint") setCustomTokenId(Number(token));
+      else if (typeof token === "number") setCustomTokenId(token);
+      else setCustomTokenId(null);
+
+      const uriVal = cvToValue(uriCV) as unknown;
+      setCustomUri(typeof uriVal === "string" ? uriVal : null);
+      setStatus("Custom milestone loaded");
+    } catch {
+      setError("Failed to load custom milestone.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className={styles.page}>
       <div className={styles.shell}>
@@ -413,19 +519,76 @@ export default function ClientPage() {
               <span className={styles.pill}>NFT</span>
             </div>
             <div className={styles.stack}>
-              <div className={styles.badgeRow}>
-                <div className={styles.badge}>
-                  <strong>7</strong> day streak badge
-                </div>
-                <div className={styles.badgeThumb}>
-                  <Image
-                    src="/badges/7-day-streak.png"
-                    alt="7 day streak badge"
-                    width={92}
-                    height={92}
-                    style={{ height: "auto" }}
-                  />
-                </div>
+              <div className={styles.badgeGrid}>
+                {BADGE_MILESTONES.map((milestone) => {
+                  const earned =
+                    badgeStatus[milestone.kind] ??
+                    (milestone.kind === 7 ? hasBadge ?? false : false);
+                  const tokenId = badgeTokenIds[milestone.kind];
+                  const tokenUri = badgeUris[milestone.kind];
+
+                  const canMint =
+                    badgeSupport === "v2" &&
+                    Boolean(address) &&
+                    typeof streak === "number" &&
+                    streak >= milestone.kind &&
+                    !earned;
+
+                  return (
+                    <div key={milestone.kind} className={styles.badgeCard}>
+                      <div className={styles.badgeThumb}>
+                        <Image
+                          src={BADGE_ASSETS[milestone.kind]}
+                          alt={`${milestone.kind} day streak badge`}
+                          width={92}
+                          height={92}
+                          style={{ height: "auto" }}
+                        />
+                      </div>
+                      <div className={styles.badgeMeta}>
+                        <div className={styles.badgeTitle}>
+                          <strong>{milestone.kind}</strong> day badge
+                        </div>
+                        <div className={styles.badgeLine}>
+                          Status:{" "}
+                          <span
+                            className={
+                              hasBadge === null && badgeSupport === null
+                                ? ""
+                                : earned
+                                ? styles.success
+                                : styles.warn
+                            }
+                          >
+                            {hasBadge === null && badgeSupport === null
+                              ? "Not loaded"
+                              : earned
+                              ? "Earned"
+                              : "Not yet"}
+                          </span>
+                        </div>
+                        {earned && tokenId !== undefined && tokenId !== null ? (
+                          <div className={styles.badgeLine}>
+                            Token: <code>{tokenId}</code>
+                          </div>
+                        ) : null}
+                        {tokenUri ? (
+                          <div className={styles.badgeLine}>
+                            Metadata: <code>{tokenUri}</code>
+                          </div>
+                        ) : null}
+                        {canMint ? (
+                          <button
+                            className={`${styles.button} ${styles.ghostButton}`}
+                            onClick={() => mintBadgeKind(milestone.kind)}
+                          >
+                            Mint Badge
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
 
               <div className={styles.field}>
@@ -435,43 +598,64 @@ export default function ClientPage() {
                 </code>
               </div>
 
-              {BADGE_MILESTONES.map((milestone) => {
-                const earned =
-                  badgeStatus[milestone.kind] ??
-                  (milestone.kind === 7 ? hasBadge ?? false : false);
-                const tokenId = badgeTokenIds[milestone.kind];
-                const tokenUri = badgeUris[milestone.kind];
-                const statusLabel =
-                  hasBadge === null && badgeSupport === null
-                    ? "Not loaded"
-                    : earned
-                    ? "Earned"
-                    : "Not yet";
-
-                return (
-                  <div key={milestone.kind} className={styles.field}>
-                    {milestone.label} badge
-                    <code>
-                      {statusLabel}
-                      {earned && tokenId !== undefined && tokenId !== null
-                        ? ` (token ${tokenId})`
-                        : ""}
-                    </code>
-                    {tokenUri ? (
-                      <div className={styles.footnote}>
-                        Metadata: <code>{tokenUri}</code>
-                      </div>
-                    ) : null}
+              {badgeSupport === "v2" ? (
+                <div className={styles.field}>
+                  Custom milestone
+                  <div className={styles.customRow}>
+                    <input
+                      className={styles.input}
+                      inputMode="numeric"
+                      placeholder="e.g. 60"
+                      value={customKind}
+                      onChange={(e) => setCustomKind(e.target.value)}
+                    />
+                    <button
+                      className={`${styles.button} ${styles.ghostButton}`}
+                      onClick={fetchCustomKind}
+                      disabled={isLoading}
+                    >
+                      Check
+                    </button>
+                    <button
+                      className={styles.button}
+                      onClick={() => mintBadgeKind(Number(customKind))}
+                      disabled={
+                        !address ||
+                        !customKind ||
+                        Boolean(customHas) ||
+                        (typeof streak === "number" &&
+                          Number(customKind) > 0 &&
+                          streak < Number(customKind))
+                      }
+                    >
+                      Mint
+                    </button>
                   </div>
-                );
-              })}
+                  <div className={styles.footnote}>
+                    Status:{" "}
+                    <code>
+                      {customHas === null
+                        ? "Not loaded"
+                        : customHas
+                        ? "Earned"
+                        : "Not yet"}
+                      {customTokenId !== null ? ` (token ${customTokenId})` : ""}
+                    </code>
+                  </div>
+                  {customUri ? (
+                    <div className={styles.footnote}>
+                      Metadata: <code>{customUri}</code>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
 
               <div className={styles.footnote}>
                 Badges are minted by the on-chain <code>claim</code> function.
                 {badgeSupport === "v1"
                   ? " This contract supports the 7-day badge."
                   : badgeSupport === "v2"
-                  ? " This contract supports multiple milestones."
+                  ? " This contract supports multiple milestones. New milestones are enabled by setting a token URI, and users can mint them any time after reaching the streak."
                   : ""}
               </div>
             </div>

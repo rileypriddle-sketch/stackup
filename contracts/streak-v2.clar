@@ -16,6 +16,8 @@
 (define-constant ERR_NOT_OWNER u101)
 (define-constant ERR_BADGE_ALREADY_MINTED u102)
 (define-constant ERR_NOT_TOKEN_OWNER u103)
+(define-constant ERR_BADGE_NOT_CONFIGURED u104)
+(define-constant ERR_STREAK_TOO_LOW u105)
 
 (define-constant BLOCKS_PER_DAY u144)
 
@@ -106,12 +108,33 @@
   )
 )
 
+(define-private (is-kind-configured (kind uint))
+  (is-some (map-get? badge-uri kind))
+)
+
 (define-private (maybe-mint (user principal) (new-streak uint) (kind uint))
   ;; Avoid throwing ERR_BADGE_ALREADY_MINTED by checking the claimed map first.
   (let ((already (default-to false (map-get? badge-claimed { user: user, kind: kind }))))
-    (if (or already (< new-streak kind))
+    (if (or already (< new-streak kind) (not (is-kind-configured kind)))
         (ok none)
         (mint-badge user kind)
+    )
+  )
+)
+
+(define-public (mint-badge-kind (kind uint))
+  (let (
+        (current-streak (default-to u0 (map-get? streak tx-sender)))
+       )
+    (if (not (is-kind-configured kind))
+        (err ERR_BADGE_NOT_CONFIGURED)
+        (if (< current-streak kind)
+            (err ERR_STREAK_TOO_LOW)
+            (match (mint-badge tx-sender kind)
+              token-id (ok token-id)
+              err-code (err err-code)
+            )
+        )
     )
   )
 )
