@@ -82,7 +82,7 @@
 
 (define-public (set-badge-uri (kind uint) (uri (string-ascii 256)))
   (match (assert-owner)
-    _ (begin
+    ok-val (begin
         (map-set badge-uri kind uri)
         (ok true)
       )
@@ -100,7 +100,7 @@
           (map-set badge-token-id { user: user, kind: kind } token-id)
           (map-set token-kind token-id kind)
           (match (nft-mint? badge token-id user)
-            _ (ok (some token-id))
+            minted (ok (some token-id))
             err-code (err err-code)
           )
         )
@@ -241,7 +241,7 @@
 (define-public (transfer (token-id uint) (sender principal) (recipient principal))
   (if (is-eq tx-sender sender)
       (match (nft-transfer? badge token-id sender recipient)
-        _ (ok true)
+        transferred (ok true)
         err-code (err err-code)
       )
       (err ERR_NOT_TOKEN_OWNER)

@@ -5,7 +5,6 @@ stacks_node_rpc_address = "http://stacks-node:20443"
 bitcoin_node_rpc_address = "http://bitcoin-node:18443"
 
 [devnet]
-network_id = "devnet"
 docker_platform = "linux/amd64"
 
 [accounts.deployer]
