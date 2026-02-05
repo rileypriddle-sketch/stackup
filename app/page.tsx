@@ -57,7 +57,13 @@ export default function Home() {
     setStatus("Opening wallet...");
     try {
       const { connect, request } = await import("@stacks/connect");
-      const result = await connect({ network: "testnet" });
+      const result = await connect({
+        network: "testnet",
+        appDetails: {
+          name: APP_NAME,
+          icon: new URL(APP_ICON_PATH, window.location.origin).toString(),
+        },
+      });
       let nextAddress =
         result.addresses?.find((entry) => entry.address.startsWith("ST"))
           ?.address ?? "";
@@ -70,9 +76,18 @@ export default function Home() {
             ?.address ?? "";
       }
       setWalletAddress(nextAddress);
-      setStatus(nextAddress ? "Wallet connected" : "Connected");
-    } catch {
-      setError("Wallet connect failed.");
+      if (nextAddress) {
+        setStatus("Wallet connected");
+      } else {
+        setStatus("Connected");
+        setError(
+          "No STX address found. Make sure Leather is unlocked and on testnet."
+        );
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Wallet connect failed.";
+      setError(message);
       setStatus("Not connected");
     }
   };
