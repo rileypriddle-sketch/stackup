@@ -59,10 +59,6 @@ export default function Home() {
       const { connect, request } = await import("@stacks/connect");
       const result = await connect({
         network: "testnet",
-        appDetails: {
-          name: APP_NAME,
-          icon: new URL(APP_ICON_PATH, window.location.origin).toString(),
-        },
       });
       let nextAddress =
         result.addresses?.find((entry) => entry.address.startsWith("ST"))
