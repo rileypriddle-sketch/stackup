@@ -2,13 +2,8 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
-import {
-  connect,
-  disconnect,
-  openContractCall,
-  request,
-} from "@stacks/connect";
-import { STACKS_TESTNET } from "@stacks/network";
+import { connect, disconnect, openContractCall, request } from "@stacks/connect";
+import { STACKS_MAINNET } from "@stacks/network";
 import {
   cvToValue,
   fetchCallReadOnlyFunction,
@@ -19,8 +14,10 @@ import styles from "./page.module.css";
 const APP_NAME = "StackUp";
 const APP_ICON_PATH = "/icons/icon.png";
 
-const CONTRACT_ADDRESS = "ST2022VXQ3E384AAHQ15KFFXVN3CY5G57HX3W1GBJ";
+const CONTRACT_ADDRESS = "SP2022VXQ3E384AAHQ15KFFXVN3CY5G57HWCCQX23";
 const CONTRACT_NAME = "streak";
+const WALLET_NETWORK = "mainnet" as const;
+const ADDRESS_PREFIX = "SP";
 
 export default function ClientPage() {
   const [walletAddress, setWalletAddress] = useState<string>("");
@@ -62,18 +59,16 @@ export default function ClientPage() {
     setError("");
     setStatus("Opening wallet...");
     try {
-      const result = await connect({
-        network: "testnet",
-      });
+      const result = await connect({ network: WALLET_NETWORK });
       let nextAddress =
-        result.addresses?.find((entry) => entry.address.startsWith("ST"))
+        result.addresses?.find((entry) => entry.address.startsWith(ADDRESS_PREFIX))
           ?.address ?? "";
       if (!nextAddress) {
         const rpcResult = await request("stx_getAddresses", {
-          network: "testnet",
+          network: WALLET_NETWORK,
         });
         nextAddress =
-          rpcResult.addresses?.find((entry) => entry.address.startsWith("ST"))
+          rpcResult.addresses?.find((entry) => entry.address.startsWith(ADDRESS_PREFIX))
             ?.address ?? "";
       }
       setWalletAddress(nextAddress);
@@ -82,7 +77,7 @@ export default function ClientPage() {
       } else {
         setStatus("Connected");
         setError(
-          "No STX address found. Make sure Leather is unlocked and on testnet."
+          "No STX address found. Make sure Leather is unlocked and on mainnet."
         );
       }
     } catch (err) {
@@ -117,7 +112,7 @@ export default function ClientPage() {
           contractName: CONTRACT_NAME,
           functionName: "get-streak",
           functionArgs: [principalCV(sender)],
-          network: STACKS_TESTNET,
+          network: STACKS_MAINNET,
           senderAddress: sender,
         }),
         fetchCallReadOnlyFunction({
@@ -125,7 +120,7 @@ export default function ClientPage() {
           contractName: CONTRACT_NAME,
           functionName: "get-last-claim-day",
           functionArgs: [principalCV(sender)],
-          network: STACKS_TESTNET,
+          network: STACKS_MAINNET,
           senderAddress: sender,
         }),
         fetchCallReadOnlyFunction({
@@ -133,7 +128,7 @@ export default function ClientPage() {
           contractName: CONTRACT_NAME,
           functionName: "has-badge",
           functionArgs: [principalCV(sender)],
-          network: STACKS_TESTNET,
+          network: STACKS_MAINNET,
           senderAddress: sender,
         }),
       ]);
@@ -176,7 +171,7 @@ export default function ClientPage() {
         contractName: CONTRACT_NAME,
         functionName: "claim",
         functionArgs: [],
-        network: STACKS_TESTNET,
+        network: STACKS_MAINNET,
         appDetails: {
           name: APP_NAME,
           icon: new URL(APP_ICON_PATH, window.location.origin).toString(),
@@ -241,7 +236,7 @@ export default function ClientPage() {
               <span> Claim daily.</span>
             </div>
             <p className={styles.lede}>
-              StackUp tracks your daily claim on Stacks testnet. Claim once per
+              StackUp tracks your daily claim on Stacks mainnet. Claim once per
               day to build momentum and unlock your 7-day NFT badge.
             </p>
             <div className={styles.heroActions}>
@@ -260,7 +255,7 @@ export default function ClientPage() {
           <div className={styles.panel}>
             <div className={styles.panelHeader}>
               <h2>Wallet status</h2>
-              <span className={styles.pill}>Testnet</span>
+              <span className={styles.pill}>Mainnet</span>
             </div>
             <div className={styles.stack}>
               <div className={styles.status}>
@@ -303,7 +298,7 @@ export default function ClientPage() {
                 </code>
               </div>
               <div className={styles.footnote}>
-                Deployed on Stacks testnet via Hiro Platform.
+                Deployed on Stacks mainnet.
               </div>
             </div>
           </div>
