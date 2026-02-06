@@ -68,6 +68,10 @@ export default function ClientPage() {
   const [mintFee, setMintFee] = useState<number | null>(null);
   const [feeRecipient, setFeeRecipient] = useState<string | null>(null);
   const [adminOpen, setAdminOpen] = useState<boolean>(false);
+  const [adminUnlocked, setAdminUnlocked] = useState<boolean>(false);
+  const [adminTapCount, setAdminTapCount] = useState<number>(0);
+  const [adminTapTs, setAdminTapTs] = useState<number>(0);
+  const [contractOwner, setContractOwner] = useState<string | null>(null);
   const [adminMilestones, setAdminMilestones] = useState<string>("1,3,7,14,30");
   const [adminMintFee, setAdminMintFee] = useState<string>("0");
   const [adminFeeRecipient, setAdminFeeRecipient] = useState<string>("");
@@ -98,9 +102,52 @@ export default function ClientPage() {
   }, [walletAddress]);
 
   const address = walletAddress;
+  const isOwner =
+    Boolean(address) && Boolean(contractOwner) && address === contractOwner;
   const shortAddress = address
     ? `${address.slice(0, 6)}...${address.slice(-4)}`
     : "Not connected";
+
+  const stacksApiBase =
+    STACKS_NETWORK === "mainnet"
+      ? "https://api.mainnet.hiro.so"
+      : "https://api.testnet.hiro.so";
+
+  const fetchContractOwner = useCallback(async () => {
+    // Pull `contract-owner` data-var via Stacks API since it's not exposed as a read-only.
+    try {
+      const res = await fetch(
+        `${stacksApiBase}/v2/data_var/${CONTRACT_ADDRESS}/${CONTRACT_NAME}/contract-owner`
+      );
+      if (!res.ok) return;
+      const body = (await res.json()) as unknown;
+
+      const repr =
+        typeof body === "object" && body !== null && "repr" in body
+          ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (body as any).repr
+          : null;
+      const data =
+        typeof body === "object" && body !== null && "data" in body
+          ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (body as any).data
+          : null;
+
+      const candidateText =
+        typeof repr === "string"
+          ? repr
+          : typeof data === "string"
+          ? data
+          : "";
+
+      const match = candidateText.match(/(SP|ST)[A-Z0-9]{20,}/);
+      if (match?.[0]) {
+        setContractOwner(match[0]);
+      }
+    } catch {
+      // ignore
+    }
+  }, [stacksApiBase]);
 
   const connectWallet = async () => {
     setError("");
@@ -134,6 +181,10 @@ export default function ClientPage() {
       setStatus("Not connected");
     }
   };
+
+  useEffect(() => {
+    fetchContractOwner();
+  }, [fetchContractOwner]);
 
   const disconnectWallet = async () => {
     disconnect();
@@ -680,6 +731,20 @@ export default function ClientPage() {
               sizes="(max-width: 720px) 160px, 200px"
               priority
               style={{ height: "auto" }}
+              onClick={() => {
+                const now = Date.now();
+                const withinWindow = adminTapTs && now - adminTapTs < 2500;
+                const nextCount = withinWindow ? adminTapCount + 1 : 1;
+
+                setAdminTapTs(now);
+                setAdminTapCount(nextCount);
+
+                if (nextCount >= 7) {
+                  setAdminUnlocked(true);
+                  setAdminOpen(true);
+                  setAdminTapCount(0);
+                }
+              }}
             />
             <div className={styles.brandText}>Daily streaks on Stacks.</div>
           </div>
@@ -943,114 +1008,9 @@ export default function ClientPage() {
                       ? "Not loaded"
                       : `${mintFee} uSTX`}
                   </code>
-                  {" • "}Recipient:{" "}
+                  {" | "}Recipient:{" "}
                   <code>{feeRecipient ? feeRecipient : "Not loaded"}</code>
                 </div>
-              </div>
-
-              <div className={styles.field}>
-                Admin
-                <button
-                  className={`${styles.button} ${styles.ghostButton}`}
-                  onClick={() => setAdminOpen((v) => !v)}
-                  type="button"
-                >
-                  {adminOpen ? "Hide" : "Show"}
-                </button>
-
-                {adminOpen ? (
-                  <div className={styles.adminPanel}>
-                    <div className={styles.adminSection}>
-                      <div className={styles.adminTitle}>Milestones (Auto-Mint)</div>
-                      <div className={styles.adminRow}>
-                        <input
-                          className={styles.input}
-                          placeholder="e.g. 1,3,7,14,30,60"
-                          value={adminMilestones}
-                          onChange={(e) => setAdminMilestones(e.target.value)}
-                        />
-                        <button
-                          className={styles.button}
-                          onClick={setMilestonesTx}
-                          disabled={!address}
-                        >
-                          Set
-                        </button>
-                      </div>
-                      <div className={styles.footnote}>
-                        Current:{" "}
-                        <code>
-                          {milestones === null ? "Not loaded" : milestones.join(",")}
-                        </code>
-                      </div>
-                    </div>
-
-                    <div className={styles.adminSection}>
-                      <div className={styles.adminTitle}>Fee Settings</div>
-                      <div className={styles.adminRow}>
-                        <input
-                          className={styles.input}
-                          inputMode="numeric"
-                          placeholder="mint fee (uSTX)"
-                          value={adminMintFee}
-                          onChange={(e) => setAdminMintFee(e.target.value)}
-                        />
-                        <button
-                          className={styles.button}
-                          onClick={setMintFeeTx}
-                          disabled={!address}
-                        >
-                          Set Fee
-                        </button>
-                      </div>
-                      <div className={styles.adminRow}>
-                        <input
-                          className={styles.input}
-                          placeholder="fee recipient (SP.../ST...)"
-                          value={adminFeeRecipient}
-                          onChange={(e) => setAdminFeeRecipient(e.target.value)}
-                        />
-                        <button
-                          className={styles.button}
-                          onClick={setFeeRecipientTx}
-                          disabled={!address}
-                        >
-                          Set Recipient
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className={styles.adminSection}>
-                      <div className={styles.adminTitle}>Badge Metadata URI</div>
-                      <div className={styles.adminRow}>
-                        <input
-                          className={styles.input}
-                          inputMode="numeric"
-                          placeholder="kind (e.g. 7)"
-                          value={adminBadgeKind}
-                          onChange={(e) => setAdminBadgeKind(e.target.value)}
-                        />
-                        <input
-                          className={styles.input}
-                          placeholder="ipfs://<metadataCID>"
-                          value={adminBadgeUri}
-                          onChange={(e) => setAdminBadgeUri(e.target.value)}
-                        />
-                        <button
-                          className={styles.button}
-                          onClick={setBadgeUriTx}
-                          disabled={!address}
-                        >
-                          Set URI
-                        </button>
-                      </div>
-                      <div className={styles.footnote}>
-                        Owner-only. If you aren’t the contract owner, these admin
-                        calls will fail on-chain.
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
               </div>
 
               <div className={styles.footnote}>
@@ -1064,6 +1024,150 @@ export default function ClientPage() {
             </div>
           </div>
         </section>
+
+        {adminUnlocked && adminOpen ? (
+          <div
+            className={styles.modalBackdrop}
+            onClick={() => {
+              setAdminOpen(false);
+              setAdminUnlocked(false);
+            }}
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+              <div className={styles.modalHeader}>
+                <div>
+                  <div className={styles.modalTitle}>Admin</div>
+                  <div className={styles.modalSub}>
+                    Owner-only controls. Tap the logo 7 times to open this panel.
+                  </div>
+                </div>
+                <button
+                  className={`${styles.button} ${styles.ghostButton}`}
+                  onClick={() => {
+                    setAdminOpen(false);
+                    setAdminUnlocked(false);
+                  }}
+                  type="button"
+                >
+                  Close
+                </button>
+              </div>
+
+              {!address ? (
+                <div className={styles.danger}>
+                  Connect your wallet to access admin controls.
+                </div>
+              ) : !contractOwner ? (
+                <div className={styles.field}>
+                  Contract owner
+                  <code>Loading...</code>
+                </div>
+              ) : !isOwner ? (
+                <div className={styles.danger}>
+                  This wallet is not the contract owner.
+                  <div className={styles.footnote}>
+                    Connected: <code>{address}</code>
+                    {" | "}Owner: <code>{contractOwner}</code>
+                  </div>
+                </div>
+              ) : (
+                <div className={styles.adminPanel}>
+                  <div className={styles.adminSection}>
+                    <div className={styles.adminTitle}>Milestones (Auto-Mint)</div>
+                    <div className={styles.adminRow}>
+                      <input
+                        className={styles.input}
+                        placeholder="e.g. 1,3,7,14,30,60"
+                        value={adminMilestones}
+                        onChange={(e) => setAdminMilestones(e.target.value)}
+                      />
+                      <button
+                        className={styles.button}
+                        onClick={setMilestonesTx}
+                        disabled={!address}
+                      >
+                        Set
+                      </button>
+                    </div>
+                    <div className={styles.footnote}>
+                      Current:{" "}
+                      <code>
+                        {milestones === null ? "Not loaded" : milestones.join(",")}
+                      </code>
+                    </div>
+                  </div>
+
+                  <div className={styles.adminSection}>
+                    <div className={styles.adminTitle}>Fee Settings</div>
+                    <div className={styles.adminRow}>
+                      <input
+                        className={styles.input}
+                        inputMode="numeric"
+                        placeholder="mint fee (uSTX)"
+                        value={adminMintFee}
+                        onChange={(e) => setAdminMintFee(e.target.value)}
+                      />
+                      <button
+                        className={styles.button}
+                        onClick={setMintFeeTx}
+                        disabled={!address}
+                      >
+                        Set Fee
+                      </button>
+                    </div>
+                    <div className={styles.adminRow}>
+                      <input
+                        className={styles.input}
+                        placeholder="fee recipient (SP.../ST...)"
+                        value={adminFeeRecipient}
+                        onChange={(e) => setAdminFeeRecipient(e.target.value)}
+                      />
+                      <button
+                        className={styles.button}
+                        onClick={setFeeRecipientTx}
+                        disabled={!address}
+                      >
+                        Set Recipient
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className={styles.adminSection}>
+                    <div className={styles.adminTitle}>Badge Metadata URI</div>
+                    <div className={styles.adminRow}>
+                      <input
+                        className={styles.input}
+                        inputMode="numeric"
+                        placeholder="kind (e.g. 7)"
+                        value={adminBadgeKind}
+                        onChange={(e) => setAdminBadgeKind(e.target.value)}
+                      />
+                      <input
+                        className={styles.input}
+                        placeholder="ipfs://<metadataCID>"
+                        value={adminBadgeUri}
+                        onChange={(e) => setAdminBadgeUri(e.target.value)}
+                      />
+                      <button
+                        className={styles.button}
+                        onClick={setBadgeUriTx}
+                        disabled={!address}
+                      >
+                        Set URI
+                      </button>
+                    </div>
+                    <div className={styles.footnote}>
+                      Owner-only. If you aren{"'"}t the contract owner, these calls will
+                      fail on-chain.
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
