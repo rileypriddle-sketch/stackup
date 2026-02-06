@@ -7,7 +7,10 @@ import { STACKS_MAINNET, STACKS_TESTNET } from "@stacks/network";
 import {
   cvToValue,
   fetchCallReadOnlyFunction,
+  listCV,
   principalCV,
+  type ClarityValue,
+  stringAsciiCV,
   uintCV,
 } from "@stacks/transactions";
 import styles from "./page.module.css";
@@ -61,6 +64,16 @@ export default function ClientPage() {
   const [customHas, setCustomHas] = useState<boolean | null>(null);
   const [customTokenId, setCustomTokenId] = useState<number | null>(null);
   const [customUri, setCustomUri] = useState<string | null>(null);
+  const [milestones, setMilestones] = useState<number[] | null>(null);
+  const [mintFee, setMintFee] = useState<number | null>(null);
+  const [feeRecipient, setFeeRecipient] = useState<string | null>(null);
+  const [adminOpen, setAdminOpen] = useState<boolean>(false);
+  const [adminMilestones, setAdminMilestones] = useState<string>("1,3,7,14,30");
+  const [adminMintFee, setAdminMintFee] = useState<string>("0");
+  const [adminFeeRecipient, setAdminFeeRecipient] = useState<string>("");
+  const [adminBadgeKind, setAdminBadgeKind] = useState<string>("1");
+  const [adminBadgeUri, setAdminBadgeUri] = useState<string>("");
+  const [paidMintKind, setPaidMintKind] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
 
@@ -262,6 +275,63 @@ export default function ClientPage() {
         setBadgeUris({});
       }
 
+      try {
+        const senderAddress = sender;
+        const [milestonesCV, feeCV, recipientCV] = await Promise.all([
+          fetchCallReadOnlyFunction({
+            contractAddress: CONTRACT_ADDRESS,
+            contractName: CONTRACT_NAME,
+            functionName: "get-milestones",
+            functionArgs: [],
+            network: STACKS_NETWORK_OBJ,
+            senderAddress,
+          }),
+          fetchCallReadOnlyFunction({
+            contractAddress: CONTRACT_ADDRESS,
+            contractName: CONTRACT_NAME,
+            functionName: "get-mint-fee",
+            functionArgs: [],
+            network: STACKS_NETWORK_OBJ,
+            senderAddress,
+          }),
+          fetchCallReadOnlyFunction({
+            contractAddress: CONTRACT_ADDRESS,
+            contractName: CONTRACT_NAME,
+            functionName: "get-fee-recipient",
+            functionArgs: [],
+            network: STACKS_NETWORK_OBJ,
+            senderAddress,
+          }),
+        ]);
+
+        const ms = cvToValue(milestonesCV) as unknown;
+        const fee = cvToValue(feeCV) as unknown;
+        const recipient = cvToValue(recipientCV) as unknown;
+
+        if (Array.isArray(ms)) {
+          const parsed = ms
+            .map((v) => (typeof v === "bigint" ? Number(v) : Number(v)))
+            .filter((v) => Number.isFinite(v) && v > 0);
+          setMilestones(parsed);
+          setAdminMilestones(parsed.join(","));
+        } else {
+          setMilestones(null);
+        }
+
+        setMintFee(typeof fee === "bigint" ? Number(fee) : Number(fee));
+        setAdminMintFee(
+          typeof fee === "bigint" ? fee.toString() : String(Number(fee))
+        );
+
+        setFeeRecipient(typeof recipient === "string" ? recipient : null);
+        setAdminFeeRecipient(typeof recipient === "string" ? recipient : "");
+      } catch {
+        // Older contracts might not expose these admin read-only endpoints.
+        setMilestones(null);
+        setMintFee(null);
+        setFeeRecipient(null);
+      }
+
       setStatus("On-chain data refreshed");
     } catch {
       setError("Failed to fetch on-chain data.");
@@ -269,6 +339,202 @@ export default function ClientPage() {
       setIsLoading(false);
     }
   }, [address]);
+
+  const openTx = (opts: { functionName: string; functionArgs: ClarityValue[] }) => {
+    openContractCall({
+      contractAddress: CONTRACT_ADDRESS,
+      contractName: CONTRACT_NAME,
+      functionName: opts.functionName,
+      functionArgs: opts.functionArgs,
+      network: STACKS_NETWORK_OBJ,
+      appDetails: {
+        name: APP_NAME,
+        icon: new URL(APP_ICON_PATH, window.location.origin).toString(),
+      },
+      onFinish: (data) => {
+        setLastTxId(data.txId ?? "");
+        setStatus("Transaction submitted");
+        setTimeout(() => {
+          fetchOnChain();
+        }, 1500);
+      },
+      onCancel: () => {
+        setStatus("Transaction cancelled");
+      },
+    });
+  };
+
+  const parseMilestonesInput = (value: string) => {
+    const parts = value
+      .split(/[,\s]+/g)
+      .map((v) => v.trim())
+      .filter(Boolean);
+    const nums = parts
+      .map((v) => Number(v))
+      .filter((v) => Number.isFinite(v) && Number.isInteger(v) && v > 0);
+    const unique = Array.from(new Set(nums)).slice(0, 20);
+    unique.sort((a, b) => a - b);
+    return unique;
+  };
+
+  const setMilestonesTx = async () => {
+    if (!address) {
+      setError("Connect wallet first.");
+      return;
+    }
+    const parsed = parseMilestonesInput(adminMilestones);
+    if (parsed.length === 0) {
+      setError("Enter at least one milestone (e.g. 1,3,7).");
+      return;
+    }
+
+    setError("");
+    setStatus("Setting milestones...");
+    try {
+      openContractCall({
+        contractAddress: CONTRACT_ADDRESS,
+        contractName: CONTRACT_NAME,
+        functionName: "set-milestones",
+        functionArgs: [listCV(parsed.map((n) => uintCV(n)))],
+        network: STACKS_NETWORK_OBJ,
+        appDetails: {
+          name: APP_NAME,
+          icon: new URL(APP_ICON_PATH, window.location.origin).toString(),
+        },
+        onFinish: (data) => {
+          setLastTxId(data.txId ?? "");
+          setStatus("Milestones submitted");
+          setTimeout(() => fetchOnChain(), 1500);
+        },
+        onCancel: () => setStatus("Milestones cancelled"),
+      });
+    } catch {
+      setError("Failed to open milestones transaction.");
+      setStatus("Milestones failed");
+    }
+  };
+
+  const setMintFeeTx = async () => {
+    if (!address) {
+      setError("Connect wallet first.");
+      return;
+    }
+    const fee = Number(adminMintFee);
+    if (!Number.isFinite(fee) || !Number.isInteger(fee) || fee < 0) {
+      setError("Enter a valid fee in uSTX (e.g. 0 or 1000000).");
+      return;
+    }
+
+    setError("");
+    setStatus("Setting mint fee...");
+    try {
+      openTx({ functionName: "set-mint-fee", functionArgs: [uintCV(fee)] });
+    } catch {
+      setError("Failed to open fee transaction.");
+      setStatus("Fee update failed");
+    }
+  };
+
+  const setFeeRecipientTx = async () => {
+    if (!address) {
+      setError("Connect wallet first.");
+      return;
+    }
+    if (!adminFeeRecipient) {
+      setError("Enter a fee-recipient address (SP... or ST...).");
+      return;
+    }
+    setError("");
+    setStatus("Setting fee-recipient...");
+    try {
+      openContractCall({
+        contractAddress: CONTRACT_ADDRESS,
+        contractName: CONTRACT_NAME,
+        functionName: "set-fee-recipient",
+        functionArgs: [principalCV(adminFeeRecipient)],
+        network: STACKS_NETWORK_OBJ,
+        appDetails: {
+          name: APP_NAME,
+          icon: new URL(APP_ICON_PATH, window.location.origin).toString(),
+        },
+        onFinish: (data) => {
+          setLastTxId(data.txId ?? "");
+          setStatus("Fee-recipient submitted");
+          setTimeout(() => fetchOnChain(), 1500);
+        },
+        onCancel: () => setStatus("Fee-recipient cancelled"),
+      });
+    } catch {
+      setError("Failed to open fee-recipient transaction.");
+      setStatus("Fee-recipient failed");
+    }
+  };
+
+  const setBadgeUriTx = async () => {
+    if (!address) {
+      setError("Connect wallet first.");
+      return;
+    }
+    const kind = Number(adminBadgeKind);
+    const uri = adminBadgeUri.trim();
+    if (!Number.isFinite(kind) || !Number.isInteger(kind) || kind <= 0) {
+      setError("Enter a valid kind (e.g. 7).");
+      return;
+    }
+    if (!uri) {
+      setError("Enter a metadata URI (e.g. ipfs://...).");
+      return;
+    }
+    if (uri.length > 256) {
+      setError("URI must be <= 256 characters.");
+      return;
+    }
+
+    setError("");
+    setStatus("Setting badge URI...");
+    try {
+      openContractCall({
+        contractAddress: CONTRACT_ADDRESS,
+        contractName: CONTRACT_NAME,
+        functionName: "set-badge-uri",
+        functionArgs: [uintCV(kind), stringAsciiCV(uri)],
+        network: STACKS_NETWORK_OBJ,
+        appDetails: {
+          name: APP_NAME,
+          icon: new URL(APP_ICON_PATH, window.location.origin).toString(),
+        },
+        onFinish: (data) => {
+          setLastTxId(data.txId ?? "");
+          setStatus("Badge URI submitted");
+          setTimeout(() => fetchOnChain(), 1500);
+        },
+        onCancel: () => setStatus("Badge URI cancelled"),
+      });
+    } catch {
+      setError("Failed to open badge URI transaction.");
+      setStatus("Badge URI failed");
+    }
+  };
+
+  const mintPaidKindTx = async () => {
+    if (!address) {
+      setError("Connect wallet first.");
+      return;
+    }
+    const kind = Number(paidMintKind);
+    if (!Number.isFinite(kind) || !Number.isInteger(kind) || kind <= 0) {
+      setError("Enter a valid kind (e.g. 777).");
+      return;
+    }
+    setError("");
+    setStatus("Submitting paid mint...");
+    try {
+      openTx({ functionName: "mint-paid-kind", functionArgs: [uintCV(kind)] });
+    } catch {
+      setError("Failed to open paid mint transaction.");
+      setStatus("Paid mint failed");
+    }
+  };
 
   useEffect(() => {
     if (address) {
@@ -651,6 +917,141 @@ export default function ClientPage() {
                   ) : null}
                 </div>
               ) : null}
+
+              <div className={styles.field}>
+                Paid mint (optional)
+                <div className={styles.customRow}>
+                  <input
+                    className={styles.input}
+                    inputMode="numeric"
+                    placeholder="kind (e.g. 777)"
+                    value={paidMintKind}
+                    onChange={(e) => setPaidMintKind(e.target.value)}
+                  />
+                  <button
+                    className={styles.button}
+                    onClick={mintPaidKindTx}
+                    disabled={!address || !paidMintKind}
+                  >
+                    Mint Paid
+                  </button>
+                </div>
+                <div className={styles.footnote}>
+                  Fee:{" "}
+                  <code>
+                    {mintFee === null || !Number.isFinite(mintFee)
+                      ? "Not loaded"
+                      : `${mintFee} uSTX`}
+                  </code>
+                  {" • "}Recipient:{" "}
+                  <code>{feeRecipient ? feeRecipient : "Not loaded"}</code>
+                </div>
+              </div>
+
+              <div className={styles.field}>
+                Admin
+                <button
+                  className={`${styles.button} ${styles.ghostButton}`}
+                  onClick={() => setAdminOpen((v) => !v)}
+                  type="button"
+                >
+                  {adminOpen ? "Hide" : "Show"}
+                </button>
+
+                {adminOpen ? (
+                  <div className={styles.adminPanel}>
+                    <div className={styles.adminSection}>
+                      <div className={styles.adminTitle}>Milestones (Auto-Mint)</div>
+                      <div className={styles.adminRow}>
+                        <input
+                          className={styles.input}
+                          placeholder="e.g. 1,3,7,14,30,60"
+                          value={adminMilestones}
+                          onChange={(e) => setAdminMilestones(e.target.value)}
+                        />
+                        <button
+                          className={styles.button}
+                          onClick={setMilestonesTx}
+                          disabled={!address}
+                        >
+                          Set
+                        </button>
+                      </div>
+                      <div className={styles.footnote}>
+                        Current:{" "}
+                        <code>
+                          {milestones === null ? "Not loaded" : milestones.join(",")}
+                        </code>
+                      </div>
+                    </div>
+
+                    <div className={styles.adminSection}>
+                      <div className={styles.adminTitle}>Fee Settings</div>
+                      <div className={styles.adminRow}>
+                        <input
+                          className={styles.input}
+                          inputMode="numeric"
+                          placeholder="mint fee (uSTX)"
+                          value={adminMintFee}
+                          onChange={(e) => setAdminMintFee(e.target.value)}
+                        />
+                        <button
+                          className={styles.button}
+                          onClick={setMintFeeTx}
+                          disabled={!address}
+                        >
+                          Set Fee
+                        </button>
+                      </div>
+                      <div className={styles.adminRow}>
+                        <input
+                          className={styles.input}
+                          placeholder="fee recipient (SP.../ST...)"
+                          value={adminFeeRecipient}
+                          onChange={(e) => setAdminFeeRecipient(e.target.value)}
+                        />
+                        <button
+                          className={styles.button}
+                          onClick={setFeeRecipientTx}
+                          disabled={!address}
+                        >
+                          Set Recipient
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className={styles.adminSection}>
+                      <div className={styles.adminTitle}>Badge Metadata URI</div>
+                      <div className={styles.adminRow}>
+                        <input
+                          className={styles.input}
+                          inputMode="numeric"
+                          placeholder="kind (e.g. 7)"
+                          value={adminBadgeKind}
+                          onChange={(e) => setAdminBadgeKind(e.target.value)}
+                        />
+                        <input
+                          className={styles.input}
+                          placeholder="ipfs://<metadataCID>"
+                          value={adminBadgeUri}
+                          onChange={(e) => setAdminBadgeUri(e.target.value)}
+                        />
+                        <button
+                          className={styles.button}
+                          onClick={setBadgeUriTx}
+                          disabled={!address}
+                        >
+                          Set URI
+                        </button>
+                      </div>
+                      <div className={styles.footnote}>
+                        Owner-only. If you aren’t the contract owner, these admin
+                        calls will fail on-chain.
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
 
               <div className={styles.footnote}>
                 Badges are minted by the on-chain <code>claim</code> function.
