@@ -19,12 +19,12 @@ const siteUrl =
 
 export const metadata: Metadata = {
   title: "StackUp",
-  description: "Daily streaks and badge rewards on Stacks.",
+  description: "Claim daily on Stacks. Earn on-chain streak badge NFTs.",
   metadataBase: new URL(siteUrl),
   openGraph: {
     type: "website",
     title: "StackUp",
-    description: "Daily streaks and badge rewards on Stacks.",
+    description: "Claim daily on Stacks. Earn on-chain streak badge NFTs.",
     url: "/",
     siteName: "StackUp",
     images: [
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "StackUp",
-    description: "Daily streaks and badge rewards on Stacks.",
+    description: "Claim daily on Stacks. Earn on-chain streak badge NFTs.",
     images: ["/og.png"],
   },
   icons: {

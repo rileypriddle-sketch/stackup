@@ -4,7 +4,8 @@ import { PNG } from "pngjs";
 
 const ROOT = process.cwd();
 
-const inLogo = path.join(ROOT, "public", "logo", "logo-light.png");
+// Social previews render best on a light background with the dark logo.
+const inLogo = path.join(ROOT, "public", "logo", "logo-dark.png");
 const outOg = path.join(ROOT, "public", "og.png");
 
 const W = 1200;
@@ -95,38 +96,41 @@ function main() {
     for (let x = 0; x < W; x += 1) {
       const tX = x / (W - 1);
 
-      const top = [8, 12, 20];
-      const bottom = [9, 18, 30];
+      const top = [250, 252, 255];
+      const bottom = [236, 242, 248];
       const base = [
         lerp(top[0], bottom[0], tY),
         lerp(top[1], bottom[1], tY),
         lerp(top[2], bottom[2], tY),
       ];
 
-      // Add a soft light toward top-left to keep the logo readable.
-      const dx = (tX - 0.18) * 1.6;
-      const dy = (tY - 0.20) * 1.6;
-      const glow = Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy));
+      // Slight tint / vignette so it doesn't look "flat white".
+      const dx = tX - 0.5;
+      const dy = tY - 0.46;
+      const dist = Math.min(1, Math.sqrt(dx * dx + dy * dy) * 1.35);
 
-      // Vignette
-      const vx = (tX - 0.5) * 1.2;
-      const vy = (tY - 0.55) * 1.2;
-      const vig = Math.min(1, Math.sqrt(vx * vx + vy * vy));
+      const tint = [79, 228, 190]; // brand accent
+      const tintAmt = 0.05 * Math.max(0, 1 - dist);
 
-      const r = Math.min(255, Math.round(base[0] + glow * 18 - vig * 18));
-      const g = Math.min(255, Math.round(base[1] + glow * 20 - vig * 18));
-      const b = Math.min(255, Math.round(base[2] + glow * 28 - vig * 18));
+      const r0 = Math.round(base[0] * (1 - tintAmt) + tint[0] * tintAmt);
+      const g0 = Math.round(base[1] * (1 - tintAmt) + tint[1] * tintAmt);
+      const b0 = Math.round(base[2] * (1 - tintAmt) + tint[2] * tintAmt);
+
+      const vig = Math.round(dist * 14);
+      const r = Math.max(0, Math.min(255, r0 - vig));
+      const g = Math.max(0, Math.min(255, g0 - vig));
+      const b = Math.max(0, Math.min(255, b0 - vig));
       setPixel(out, x, y, Math.max(0, r), Math.max(0, g), Math.max(0, b), 255);
     }
   }
 
-  // Place logo centered-left with padding; keep it smaller so previews look clean.
-  const targetW = 520;
+  // Place logo centered; keep it comfortably sized for previews.
+  const targetW = 560;
   const scale = targetW / src.width;
   const targetH = Math.round(src.height * scale);
 
-  const destX0 = 96;
-  const destY0 = Math.round((H - targetH) / 2) - 10;
+  const destX0 = Math.round((W - targetW) / 2);
+  const destY0 = Math.round((H - targetH) / 2);
 
   for (let y = 0; y < targetH; y += 1) {
     for (let x = 0; x < targetW; x += 1) {
@@ -137,6 +141,10 @@ function main() {
       const dy = destY0 + y;
       if (dx < 0 || dx >= W || dy < 0 || dy >= H) continue;
       if (a < 2) continue;
+      // Soft shadow for contrast.
+      if (a > 40) {
+        blendOver(out, dx + 4, dy + 6, 10, 16, 24, Math.round(a * 0.16));
+      }
       blendOver(out, dx, dy, r, g, b, a);
     }
   }
@@ -146,4 +154,3 @@ function main() {
 }
 
 main();
-
