@@ -28,6 +28,7 @@ const STACKS_NETWORK_OBJ =
   STACKS_NETWORK === "mainnet" ? STACKS_MAINNET : STACKS_TESTNET;
 
 const BADGE_MILESTONES = [
+  { kind: 1, label: "1 day" },
   { kind: 3, label: "3 day" },
   { kind: 7, label: "7 day" },
   { kind: 14, label: "14 day" },
@@ -35,6 +36,7 @@ const BADGE_MILESTONES = [
 ] as const;
 
 const BADGE_ASSETS: Record<number, string> = {
+  1: "/badges/1-day-streak.png",
   3: "/badges/3-day-streak.png",
   7: "/badges/7-day-streak.png",
   14: "/badges/14-day-streak.png",

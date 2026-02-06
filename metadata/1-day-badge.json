@@ -1,0 +1,10 @@
+{
+  "name": "StackUp 1-Day Streak",
+  "description": "Awarded for completing your first daily claim on StackUp.",
+  "image": "ipfs://bafybeid24ylbcfztzyy6ooiobwo3kosnkgq6n2oirqw6o3gvdthh3f7vhe",
+  "attributes": [
+    { "trait_type": "milestone_days", "value": 1 },
+    { "trait_type": "app", "value": "StackUp" }
+  ]
+}
+
