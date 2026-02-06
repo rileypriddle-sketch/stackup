@@ -10,7 +10,7 @@ Daily streaks on Stacks. Connect your wallet, claim once per day, and earn NFT b
 ## Contracts
 This repo contains two generations of the contract:
 - `contracts/streak.clar` (V1): streak tracking + 7-day badge.
-- `contracts/streak-v2.clar` (V2): streak tracking + configurable badge milestones + token URIs for metadata.
+- `contracts/streak-v3.clar` (V2): streak tracking + configurable badge milestones + token URIs for metadata.
 
 ### Badge Metadata (IPFS)
 V2 supports token metadata URIs via `set-badge-uri(kind, uri)`:
@@ -33,7 +33,7 @@ Features:
 Set these Cloudflare Pages / local env vars:
 - `NEXT_PUBLIC_STACKS_NETWORK` = `mainnet` or `testnet`
 - `NEXT_PUBLIC_CONTRACT_ADDRESS` = `SP...` (mainnet) / `ST...` (testnet)
-- `NEXT_PUBLIC_CONTRACT_NAME` = `streak` or `streak-v2`
+- `NEXT_PUBLIC_CONTRACT_NAME` = `streak` or `streak-v3`
 
 If env vars are not set, the app falls back to defaults inside `app/ClientPage.tsx`.
 

@@ -18,7 +18,7 @@ const APP_ICON_PATH = "/icons/icon.png";
 const CONTRACT_ADDRESS =
   process.env.NEXT_PUBLIC_CONTRACT_ADDRESS ??
   "SP2022VXQ3E384AAHQ15KFFXVN3CY5G57HWCCQX23";
-const CONTRACT_NAME = process.env.NEXT_PUBLIC_CONTRACT_NAME ?? "streak";
+const CONTRACT_NAME = process.env.NEXT_PUBLIC_CONTRACT_NAME ?? "streak-v3";
 const STACKS_NETWORK = (process.env.NEXT_PUBLIC_STACKS_NETWORK ??
   "mainnet") as "mainnet" | "testnet";
 

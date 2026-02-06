@@ -8,7 +8,7 @@ path = "contracts/streak.clar"
 clarity_version = 3
 epoch = "3.1"
 
-[contracts.streak-v2]
-path = "contracts/streak-v2.clar"
+[contracts.streak-v3]
+path = "contracts/streak-v3.clar"
 clarity_version = 3
 epoch = "3.1"

@@ -5,7 +5,7 @@
 ;; - Token URIs via a local SIP-009 trait
 ;;
 ;; Notes:
-;; - This is a new contract (immutable once deployed). Deploy as `streak-v2`.
+;; - This is a new contract (immutable once deployed). Deploy as `streak-v3`.
 ;; - Set CONTRACT_OWNER to the deploying principal before mainnet deployment.
 ;;
 ;; We intentionally do NOT `impl-trait` a separate SIP-009 trait contract here.
