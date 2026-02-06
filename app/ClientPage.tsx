@@ -46,6 +46,20 @@ const BADGE_ASSETS: Record<number, string> = {
   30: "/badges/30-day-streak.png",
 };
 
+const PAID_NFT_KINDS: number[] = (() => {
+  const raw = process.env.NEXT_PUBLIC_PAID_KINDS ?? "8";
+  const parts = raw
+    .split(/[,\s]+/g)
+    .map((v) => v.trim())
+    .filter(Boolean);
+  const nums = parts
+    .map((v) => Number(v))
+    .filter((v) => Number.isFinite(v) && Number.isInteger(v) && v > 0);
+  const unique = Array.from(new Set(nums)).slice(0, 12);
+  unique.sort((a, b) => a - b);
+  return unique.length ? unique : [8];
+})();
+
 export default function ClientPage() {
   const [walletAddress, setWalletAddress] = useState<string>("");
   const [status, setStatus] = useState<string>("Not connected");
@@ -60,12 +74,11 @@ export default function ClientPage() {
     Record<number, number | null>
   >({});
   const [badgeUris, setBadgeUris] = useState<Record<number, string | null>>({});
-  const [customKind, setCustomKind] = useState<string>("");
-  const [customHas, setCustomHas] = useState<boolean | null>(null);
-  const [customTokenId, setCustomTokenId] = useState<number | null>(null);
-  const [customUri, setCustomUri] = useState<string | null>(null);
   const [milestones, setMilestones] = useState<number[] | null>(null);
   const [mintFee, setMintFee] = useState<number | null>(null);
+  const [mintFeesByKind, setMintFeesByKind] = useState<
+    Record<number, number | null>
+  >({});
   const [feeRecipient, setFeeRecipient] = useState<string | null>(null);
   const [adminOpen, setAdminOpen] = useState<boolean>(false);
   const [adminUnlocked, setAdminUnlocked] = useState<boolean>(false);
@@ -77,7 +90,6 @@ export default function ClientPage() {
   const [adminFeeRecipient, setAdminFeeRecipient] = useState<string>("");
   const [adminBadgeKind, setAdminBadgeKind] = useState<string>("1");
   const [adminBadgeUri, setAdminBadgeUri] = useState<string>("");
-  const [paidMintKind, setPaidMintKind] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
 
@@ -245,14 +257,21 @@ export default function ClientPage() {
       );
 
       const loadV2Badges = async () => {
+        const kindsToCheck = Array.from(
+          new Set([
+            ...BADGE_MILESTONES.map((m) => m.kind),
+            ...PAID_NFT_KINDS,
+          ])
+        );
+
         const badgeChecks = await Promise.all(
-          BADGE_MILESTONES.map(async (milestone) => {
+          kindsToCheck.map(async (kind) => {
             const [hasCV, tokenCV, uriCV] = await Promise.all([
               fetchCallReadOnlyFunction({
                 contractAddress: CONTRACT_ADDRESS,
                 contractName: CONTRACT_NAME,
                 functionName: "has-badge-kind",
-                functionArgs: [principalCV(sender), uintCV(milestone.kind)],
+                functionArgs: [principalCV(sender), uintCV(kind)],
                 network: STACKS_NETWORK_OBJ,
                 senderAddress: sender,
               }),
@@ -260,7 +279,7 @@ export default function ClientPage() {
                 contractAddress: CONTRACT_ADDRESS,
                 contractName: CONTRACT_NAME,
                 functionName: "get-badge-token-id",
-                functionArgs: [principalCV(sender), uintCV(milestone.kind)],
+                functionArgs: [principalCV(sender), uintCV(kind)],
                 network: STACKS_NETWORK_OBJ,
                 senderAddress: sender,
               }),
@@ -268,13 +287,13 @@ export default function ClientPage() {
                 contractAddress: CONTRACT_ADDRESS,
                 contractName: CONTRACT_NAME,
                 functionName: "get-badge-uri",
-                functionArgs: [uintCV(milestone.kind)],
+                functionArgs: [uintCV(kind)],
                 network: STACKS_NETWORK_OBJ,
                 senderAddress: sender,
               }),
             ]);
             return {
-              kind: milestone.kind,
+              kind,
               has: Boolean(cvToValue(hasCV)),
               token: cvToValue(tokenCV) as unknown,
               uri: cvToValue(uriCV) as unknown,
@@ -370,18 +389,48 @@ export default function ClientPage() {
           setMilestones(null);
         }
 
-        setMintFee(typeof fee === "bigint" ? Number(fee) : Number(fee));
-        setAdminMintFee(
-          typeof fee === "bigint" ? fee.toString() : String(Number(fee))
-        );
+        const mintFeeValue = typeof fee === "bigint" ? Number(fee) : Number(fee);
+        setMintFee(mintFeeValue);
+        setAdminMintFee(typeof fee === "bigint" ? fee.toString() : String(mintFeeValue));
 
         setFeeRecipient(typeof recipient === "string" ? recipient : null);
         setAdminFeeRecipient(typeof recipient === "string" ? recipient : "");
+
+        // Per-kind paid mint fee (streak-v3-5). Fallback to global `mint-fee` if missing.
+        try {
+          const feeByKindCVs = await Promise.all(
+            PAID_NFT_KINDS.map((kind) =>
+              fetchCallReadOnlyFunction({
+                contractAddress: CONTRACT_ADDRESS,
+                contractName: CONTRACT_NAME,
+                functionName: "get-mint-fee-kind",
+                functionArgs: [uintCV(kind)],
+                network: STACKS_NETWORK_OBJ,
+                senderAddress,
+              })
+            )
+          );
+
+          const nextMap: Record<number, number | null> = {};
+          for (let i = 0; i < PAID_NFT_KINDS.length; i += 1) {
+            const kind = PAID_NFT_KINDS[i];
+            const val = cvToValue(feeByKindCVs[i]) as unknown;
+            if (typeof val === "bigint") nextMap[kind] = Number(val);
+            else if (typeof val === "number") nextMap[kind] = val;
+            else nextMap[kind] = null;
+          }
+          setMintFeesByKind(nextMap);
+        } catch {
+          const nextMap: Record<number, number | null> = {};
+          for (const kind of PAID_NFT_KINDS) nextMap[kind] = mintFeeValue;
+          setMintFeesByKind(nextMap);
+        }
       } catch {
         // Older contracts might not expose these admin read-only endpoints.
         setMilestones(null);
         setMintFee(null);
         setFeeRecipient(null);
+        setMintFeesByKind({});
       }
 
       setStatus("On-chain data refreshed");
@@ -575,20 +624,34 @@ export default function ClientPage() {
     }
   };
 
-  const mintPaidKindTx = async () => {
+  const mintPaidKind = async (kind: number) => {
     if (!address) {
       setError("Connect wallet first.");
       return;
     }
-    const kind = Number(paidMintKind);
-    if (!Number.isFinite(kind) || !Number.isInteger(kind) || kind <= 0) {
-      setError("Enter a valid kind (e.g. 777).");
-      return;
-    }
+
     setError("");
-    setStatus("Submitting paid mint...");
+    setStatus(`Minting paid NFT kind ${kind}...`);
     try {
-      openTx({ functionName: "mint-paid-kind", functionArgs: [uintCV(kind)] });
+      openContractCall({
+        contractAddress: CONTRACT_ADDRESS,
+        contractName: CONTRACT_NAME,
+        functionName: "mint-paid-kind",
+        functionArgs: [uintCV(kind)],
+        network: STACKS_NETWORK_OBJ,
+        appDetails: {
+          name: APP_NAME,
+          icon: new URL(APP_ICON_PATH, window.location.origin).toString(),
+        },
+        onFinish: (data) => {
+          setLastTxId(data.txId ?? "");
+          setStatus("Paid mint submitted");
+          scheduleRefresh(address || undefined);
+        },
+        onCancel: () => {
+          setStatus("Paid mint cancelled");
+        },
+      });
     } catch {
       setError("Failed to open paid mint transaction.");
       setStatus("Paid mint failed");
@@ -658,68 +721,6 @@ export default function ClientPage() {
     } catch {
       setError("Failed to open mint transaction.");
       setStatus("Mint failed");
-    }
-  };
-
-  const fetchCustomKind = async () => {
-    if (badgeSupport !== "v2") {
-      setError("Custom milestones require the V2 contract.");
-      return;
-    }
-
-    const kind = Number(customKind);
-    if (!Number.isFinite(kind) || kind <= 0) {
-      setError("Enter a valid milestone number (e.g. 60).");
-      return;
-    }
-
-    setIsLoading(true);
-    setError("");
-
-    const sender = address || CONTRACT_ADDRESS;
-
-    try {
-      const [hasCV, tokenCV, uriCV] = await Promise.all([
-        fetchCallReadOnlyFunction({
-          contractAddress: CONTRACT_ADDRESS,
-          contractName: CONTRACT_NAME,
-          functionName: "has-badge-kind",
-          functionArgs: [principalCV(sender), uintCV(kind)],
-          network: STACKS_NETWORK_OBJ,
-          senderAddress: sender,
-        }),
-        fetchCallReadOnlyFunction({
-          contractAddress: CONTRACT_ADDRESS,
-          contractName: CONTRACT_NAME,
-          functionName: "get-badge-token-id",
-          functionArgs: [principalCV(sender), uintCV(kind)],
-          network: STACKS_NETWORK_OBJ,
-          senderAddress: sender,
-        }),
-        fetchCallReadOnlyFunction({
-          contractAddress: CONTRACT_ADDRESS,
-          contractName: CONTRACT_NAME,
-          functionName: "get-badge-uri",
-          functionArgs: [uintCV(kind)],
-          network: STACKS_NETWORK_OBJ,
-          senderAddress: sender,
-        }),
-      ]);
-
-      setCustomHas(Boolean(cvToValue(hasCV)));
-      const token = cvToValue(tokenCV) as unknown;
-      if (token === null) setCustomTokenId(null);
-      else if (typeof token === "bigint") setCustomTokenId(Number(token));
-      else if (typeof token === "number") setCustomTokenId(token);
-      else setCustomTokenId(null);
-
-      const uriVal = cvToValue(uriCV) as unknown;
-      setCustomUri(typeof uriVal === "string" ? uriVal : null);
-      setStatus("Custom milestone loaded");
-    } catch {
-      setError("Failed to load custom milestone.");
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -937,85 +938,72 @@ export default function ClientPage() {
                 </code>
               </div>
 
-              {badgeSupport === "v2" ? (
-                <div className={styles.field}>
-                  Custom milestone
-                  <div className={styles.customRow}>
-                    <input
-                      className={styles.input}
-                      inputMode="numeric"
-                      placeholder="e.g. 60"
-                      value={customKind}
-                      onChange={(e) => setCustomKind(e.target.value)}
-                    />
-                    <button
-                      className={`${styles.button} ${styles.ghostButton}`}
-                      onClick={fetchCustomKind}
-                      disabled={isLoading}
-                    >
-                      Check
-                    </button>
-                    <button
-                      className={styles.button}
-                      onClick={() => mintBadgeKind(Number(customKind))}
-                      disabled={
-                        !address ||
-                        !customKind ||
-                        Boolean(customHas) ||
-                        (typeof streak === "number" &&
-                          Number(customKind) > 0 &&
-                          streak < Number(customKind))
-                      }
-                    >
-                      Mint
-                    </button>
-                  </div>
-                  <div className={styles.footnote}>
-                    Status:{" "}
-                    <code>
-                      {customHas === null
-                        ? "Not loaded"
-                        : customHas
-                        ? "Earned"
-                        : "Not yet"}
-                      {customTokenId !== null ? ` (token ${customTokenId})` : ""}
-                    </code>
-                  </div>
-                  {customUri ? (
-                    <div className={styles.footnote}>
-                      Metadata: <code>{customUri}</code>
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-
               <div className={styles.field}>
-                Paid mint (optional)
-                <div className={styles.customRow}>
-                  <input
-                    className={styles.input}
-                    inputMode="numeric"
-                    placeholder="kind (e.g. 777)"
-                    value={paidMintKind}
-                    onChange={(e) => setPaidMintKind(e.target.value)}
-                  />
-                  <button
-                    className={styles.button}
-                    onClick={mintPaidKindTx}
-                    disabled={!address || !paidMintKind}
-                  >
-                    Mint Paid
-                  </button>
-                </div>
-                <div className={styles.footnote}>
-                  Fee:{" "}
-                  <code>
-                    {mintFee === null || !Number.isFinite(mintFee)
-                      ? "Not loaded"
-                      : `${mintFee} uSTX`}
-                  </code>
-                  {" | "}Recipient:{" "}
-                  <code>{feeRecipient ? feeRecipient : "Not loaded"}</code>
+                Paid NFTs
+                <div className={styles.badgeGrid}>
+                  {PAID_NFT_KINDS.map((kind) => {
+                    const claimed = Boolean(badgeStatus[kind]);
+                    const tokenId = badgeTokenIds[kind];
+                    const tokenUri = badgeUris[kind];
+                    const configured = Boolean(tokenUri);
+                    const feeForKind = mintFeesByKind[kind] ?? mintFee;
+
+                    return (
+                      <div key={kind} className={styles.badgeCard}>
+                        <div className={styles.badgeThumb}>
+                          <Image
+                            src={BADGE_ASSETS[kind] ?? "/icons/icon.png"}
+                            alt={`Paid NFT kind ${kind}`}
+                            width={92}
+                            height={92}
+                            style={{ height: "auto" }}
+                          />
+                        </div>
+                        <div className={styles.badgeMeta}>
+                          <div className={styles.badgeTitle}>
+                            Kind <strong>{kind}</strong>
+                          </div>
+                          <div className={styles.badgeLine}>
+                            Status:{" "}
+                            <span className={claimed ? styles.success : styles.warn}>
+                              {claimed ? "Claimed" : "Not claimed"}
+                            </span>
+                          </div>
+                          {tokenId !== undefined && tokenId !== null ? (
+                            <div className={styles.badgeLine}>
+                              Token: <code>{tokenId}</code>
+                            </div>
+                          ) : null}
+                          <div className={styles.badgeLine}>
+                            Fee:{" "}
+                            <code>
+                              {feeForKind === null || !Number.isFinite(feeForKind)
+                                ? "Not loaded"
+                                : `${feeForKind} uSTX`}
+                            </code>
+                            {" | "}Recipient:{" "}
+                            <code>{feeRecipient ? feeRecipient : "Not loaded"}</code>
+                          </div>
+                          <div className={styles.badgeLine}>
+                            Metadata: <code>{tokenUri ? tokenUri : "Not set"}</code>
+                          </div>
+                          <button
+                            className={`${styles.button} ${styles.ghostButton}`}
+                            onClick={() => mintPaidKind(kind)}
+                            disabled={!address || !configured || claimed}
+                          >
+                            Mint
+                          </button>
+                          {!configured ? (
+                            <div className={styles.footnote}>
+                              Not configured yet. Ask the owner to set a token URI for
+                              kind <code>{kind}</code>.
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
