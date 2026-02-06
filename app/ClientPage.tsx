@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
@@ -46,25 +46,10 @@ const BADGE_ASSETS: Record<number, string> = {
   30: "/badges/30-day-streak.png",
 };
 
-const PAID_NFT_KINDS: number[] = (() => {
-  const raw = process.env.NEXT_PUBLIC_PAID_KINDS ?? "8";
-  const parts = raw
-    .split(/[,\s]+/g)
-    .map((v) => v.trim())
-    .filter(Boolean);
-  const nums = parts
-    .map((v) => Number(v))
-    .filter((v) => Number.isFinite(v) && Number.isInteger(v) && v > 0);
-  const unique = Array.from(new Set(nums)).slice(0, 12);
-  unique.sort((a, b) => a - b);
-  return unique.length ? unique : [8];
-})();
-
 export default function ClientPage() {
   const [walletAddress, setWalletAddress] = useState<string>("");
   const [status, setStatus] = useState<string>("Not connected");
   const [error, setError] = useState<string>("");
-  const [lastTxId, setLastTxId] = useState<string>("");
   const [streak, setStreak] = useState<number | null>(null);
   const [lastClaimDay, setLastClaimDay] = useState<number | null>(null);
   const [hasBadge, setHasBadge] = useState<boolean | null>(null);
@@ -73,13 +58,7 @@ export default function ClientPage() {
   const [badgeTokenIds, setBadgeTokenIds] = useState<
     Record<number, number | null>
   >({});
-  const [badgeUris, setBadgeUris] = useState<Record<number, string | null>>({});
   const [milestones, setMilestones] = useState<number[] | null>(null);
-  const [mintFee, setMintFee] = useState<number | null>(null);
-  const [mintFeesByKind, setMintFeesByKind] = useState<
-    Record<number, number | null>
-  >({});
-  const [feeRecipient, setFeeRecipient] = useState<string | null>(null);
   const [adminOpen, setAdminOpen] = useState<boolean>(false);
   const [adminUnlocked, setAdminUnlocked] = useState<boolean>(false);
   const [adminTapCount, setAdminTapCount] = useState<number>(0);
@@ -257,16 +236,11 @@ export default function ClientPage() {
       );
 
       const loadV2Badges = async () => {
-        const kindsToCheck = Array.from(
-          new Set([
-            ...BADGE_MILESTONES.map((m) => m.kind),
-            ...PAID_NFT_KINDS,
-          ])
-        );
+        const kindsToCheck = Array.from(new Set(BADGE_MILESTONES.map((m) => m.kind)));
 
         const badgeChecks = await Promise.all(
           kindsToCheck.map(async (kind) => {
-            const [hasCV, tokenCV, uriCV] = await Promise.all([
+            const [hasCV, tokenCV] = await Promise.all([
               fetchCallReadOnlyFunction({
                 contractAddress: CONTRACT_ADDRESS,
                 contractName: CONTRACT_NAME,
@@ -283,27 +257,17 @@ export default function ClientPage() {
                 network: STACKS_NETWORK_OBJ,
                 senderAddress: sender,
               }),
-              fetchCallReadOnlyFunction({
-                contractAddress: CONTRACT_ADDRESS,
-                contractName: CONTRACT_NAME,
-                functionName: "get-badge-uri",
-                functionArgs: [uintCV(kind)],
-                network: STACKS_NETWORK_OBJ,
-                senderAddress: sender,
-              }),
             ]);
             return {
               kind,
               has: Boolean(cvToValue(hasCV)),
               token: cvToValue(tokenCV) as unknown,
-              uri: cvToValue(uriCV) as unknown,
             };
           })
         );
 
         const nextStatus: Record<number, boolean> = {};
         const nextTokenIds: Record<number, number | null> = {};
-        const nextUris: Record<number, string | null> = {};
         for (const entry of badgeChecks) {
           nextStatus[entry.kind] = entry.has;
           if (entry.token === null) {
@@ -315,15 +279,11 @@ export default function ClientPage() {
           } else {
             nextTokenIds[entry.kind] = null;
           }
-
-          nextUris[entry.kind] =
-            typeof entry.uri === "string" ? entry.uri : null;
         }
 
         setBadgeSupport("v2");
         setBadgeStatus(nextStatus);
         setBadgeTokenIds(nextTokenIds);
-        setBadgeUris(nextUris);
         setHasBadge(Boolean(nextStatus[7]));
       };
 
@@ -343,41 +303,20 @@ export default function ClientPage() {
         setHasBadge(Boolean(badgeValue));
         setBadgeStatus({ 7: Boolean(badgeValue) });
         setBadgeTokenIds({});
-        setBadgeUris({});
       }
 
       try {
         const senderAddress = sender;
-        const [milestonesCV, feeCV, recipientCV] = await Promise.all([
-          fetchCallReadOnlyFunction({
-            contractAddress: CONTRACT_ADDRESS,
-            contractName: CONTRACT_NAME,
-            functionName: "get-milestones",
-            functionArgs: [],
-            network: STACKS_NETWORK_OBJ,
-            senderAddress,
-          }),
-          fetchCallReadOnlyFunction({
-            contractAddress: CONTRACT_ADDRESS,
-            contractName: CONTRACT_NAME,
-            functionName: "get-mint-fee",
-            functionArgs: [],
-            network: STACKS_NETWORK_OBJ,
-            senderAddress,
-          }),
-          fetchCallReadOnlyFunction({
-            contractAddress: CONTRACT_ADDRESS,
-            contractName: CONTRACT_NAME,
-            functionName: "get-fee-recipient",
-            functionArgs: [],
-            network: STACKS_NETWORK_OBJ,
-            senderAddress,
-          }),
-        ]);
+        const milestonesCV = await fetchCallReadOnlyFunction({
+          contractAddress: CONTRACT_ADDRESS,
+          contractName: CONTRACT_NAME,
+          functionName: "get-milestones",
+          functionArgs: [],
+          network: STACKS_NETWORK_OBJ,
+          senderAddress,
+        });
 
         const ms = cvToValue(milestonesCV) as unknown;
-        const fee = cvToValue(feeCV) as unknown;
-        const recipient = cvToValue(recipientCV) as unknown;
 
         if (Array.isArray(ms)) {
           const parsed = ms
@@ -389,48 +328,9 @@ export default function ClientPage() {
           setMilestones(null);
         }
 
-        const mintFeeValue = typeof fee === "bigint" ? Number(fee) : Number(fee);
-        setMintFee(mintFeeValue);
-        setAdminMintFee(typeof fee === "bigint" ? fee.toString() : String(mintFeeValue));
-
-        setFeeRecipient(typeof recipient === "string" ? recipient : null);
-        setAdminFeeRecipient(typeof recipient === "string" ? recipient : "");
-
-        // Per-kind paid mint fee (streak-v3-5). Fallback to global `mint-fee` if missing.
-        try {
-          const feeByKindCVs = await Promise.all(
-            PAID_NFT_KINDS.map((kind) =>
-              fetchCallReadOnlyFunction({
-                contractAddress: CONTRACT_ADDRESS,
-                contractName: CONTRACT_NAME,
-                functionName: "get-mint-fee-kind",
-                functionArgs: [uintCV(kind)],
-                network: STACKS_NETWORK_OBJ,
-                senderAddress,
-              })
-            )
-          );
-
-          const nextMap: Record<number, number | null> = {};
-          for (let i = 0; i < PAID_NFT_KINDS.length; i += 1) {
-            const kind = PAID_NFT_KINDS[i];
-            const val = cvToValue(feeByKindCVs[i]) as unknown;
-            if (typeof val === "bigint") nextMap[kind] = Number(val);
-            else if (typeof val === "number") nextMap[kind] = val;
-            else nextMap[kind] = null;
-          }
-          setMintFeesByKind(nextMap);
-        } catch {
-          const nextMap: Record<number, number | null> = {};
-          for (const kind of PAID_NFT_KINDS) nextMap[kind] = mintFeeValue;
-          setMintFeesByKind(nextMap);
-        }
       } catch {
         // Older contracts might not expose these admin read-only endpoints.
         setMilestones(null);
-        setMintFee(null);
-        setFeeRecipient(null);
-        setMintFeesByKind({});
       }
 
       setStatus("On-chain data refreshed");
@@ -461,8 +361,7 @@ export default function ClientPage() {
         name: APP_NAME,
         icon: new URL(APP_ICON_PATH, window.location.origin).toString(),
       },
-      onFinish: (data) => {
-        setLastTxId(data.txId ?? "");
+      onFinish: () => {
         setStatus("Transaction submitted");
         scheduleRefresh(address || undefined);
       },
@@ -509,8 +408,7 @@ export default function ClientPage() {
           name: APP_NAME,
           icon: new URL(APP_ICON_PATH, window.location.origin).toString(),
         },
-        onFinish: (data) => {
-          setLastTxId(data.txId ?? "");
+        onFinish: () => {
           setStatus("Milestones submitted");
           scheduleRefresh(address);
         },
@@ -565,8 +463,7 @@ export default function ClientPage() {
           name: APP_NAME,
           icon: new URL(APP_ICON_PATH, window.location.origin).toString(),
         },
-        onFinish: (data) => {
-          setLastTxId(data.txId ?? "");
+        onFinish: () => {
           setStatus("Fee-recipient submitted");
           scheduleRefresh(address);
         },
@@ -611,8 +508,7 @@ export default function ClientPage() {
           name: APP_NAME,
           icon: new URL(APP_ICON_PATH, window.location.origin).toString(),
         },
-        onFinish: (data) => {
-          setLastTxId(data.txId ?? "");
+        onFinish: () => {
           setStatus("Badge URI submitted");
           scheduleRefresh(address);
         },
@@ -621,40 +517,6 @@ export default function ClientPage() {
     } catch {
       setError("Failed to open badge URI transaction.");
       setStatus("Badge URI failed");
-    }
-  };
-
-  const mintPaidKind = async (kind: number) => {
-    if (!address) {
-      setError("Connect wallet first.");
-      return;
-    }
-
-    setError("");
-    setStatus(`Minting paid NFT kind ${kind}...`);
-    try {
-      openContractCall({
-        contractAddress: CONTRACT_ADDRESS,
-        contractName: CONTRACT_NAME,
-        functionName: "mint-paid-kind",
-        functionArgs: [uintCV(kind)],
-        network: STACKS_NETWORK_OBJ,
-        appDetails: {
-          name: APP_NAME,
-          icon: new URL(APP_ICON_PATH, window.location.origin).toString(),
-        },
-        onFinish: (data) => {
-          setLastTxId(data.txId ?? "");
-          setStatus("Paid mint submitted");
-          scheduleRefresh(address || undefined);
-        },
-        onCancel: () => {
-          setStatus("Paid mint cancelled");
-        },
-      });
-    } catch {
-      setError("Failed to open paid mint transaction.");
-      setStatus("Paid mint failed");
     }
   };
 
@@ -679,8 +541,7 @@ export default function ClientPage() {
           name: APP_NAME,
           icon: new URL(APP_ICON_PATH, window.location.origin).toString(),
         },
-        onFinish: (data) => {
-          setLastTxId(data.txId ?? "");
+        onFinish: () => {
           setStatus("Claim submitted");
           scheduleRefresh(address || undefined);
         },
@@ -709,8 +570,7 @@ export default function ClientPage() {
           name: APP_NAME,
           icon: new URL(APP_ICON_PATH, window.location.origin).toString(),
         },
-        onFinish: (data) => {
-          setLastTxId(data.txId ?? "");
+        onFinish: () => {
           setStatus("Mint submitted");
           scheduleRefresh(address || undefined);
         },
@@ -763,12 +623,25 @@ export default function ClientPage() {
               {theme === "dark" ? "Light Mode" : "Dark Mode"}
             </button>
             {address ? (
-              <button
-                className={`${styles.button} ${styles.ghostButton}`}
-                onClick={disconnectWallet}
-              >
-                Disconnect
-              </button>
+              <>
+                <button
+                  className={`${styles.button} ${styles.ghostButton} ${styles.walletButton}`}
+                  onClick={() => fetchOnChain()}
+                  type="button"
+                >
+                  <span className={styles.walletMain}>{shortAddress}</span>
+                  <span className={styles.walletSub}>
+                    Streak {streak ?? "-"} {" | "}Day {lastClaimDay ?? "-"}
+                  </span>
+                </button>
+                <button
+                  className={`${styles.button} ${styles.ghostButton}`}
+                  onClick={disconnectWallet}
+                  type="button"
+                >
+                  Disconnect
+                </button>
+              </>
             ) : (
               <button className={styles.button} onClick={connectWallet}>
                 Connect Wallet
@@ -787,72 +660,35 @@ export default function ClientPage() {
               StackUp tracks your daily claim on Stacks {STACKS_NETWORK}. Claim
               once per day to build momentum and unlock NFT badges.
             </p>
+            <div className={styles.heroMeta}>
+              <div className={styles.metaItem}>
+                Contract <code>{CONTRACT_ADDRESS}.{CONTRACT_NAME}</code>
+              </div>
+              <div className={styles.metaItem}>
+                Network{" "}
+                <code>{STACKS_NETWORK === "mainnet" ? "Mainnet" : "Testnet"}</code>
+              </div>
+            </div>
             <div className={styles.heroActions}>
               <button className={styles.button} onClick={claimStreak}>
                 Claim Now
               </button>
-                <button
-                  className={`${styles.button} ${styles.ghostButton}`}
-                  onClick={() => fetchOnChain()}
-                  disabled={isLoading}
-                >
-                  {isLoading ? "Refreshing..." : "Refresh On-Chain"}
-                </button>
+              <button
+                className={`${styles.button} ${styles.ghostButton}`}
+                onClick={() => fetchOnChain()}
+                disabled={isLoading}
+              >
+                {isLoading ? "Refreshing..." : "Refresh On-Chain"}
+              </button>
             </div>
-          </div>
-          <div className={styles.panel}>
-            <div className={styles.panelHeader}>
-              <h2>Wallet status</h2>
-              <span className={styles.pill}>
-                {STACKS_NETWORK === "mainnet" ? "Mainnet" : "Testnet"}
-              </span>
+            <div className={styles.statusLine}>
+              Status: <span>{status}</span>
             </div>
-            <div className={styles.stack}>
-              <div className={styles.status}>
-                Status: <span>{status}</span>
-              </div>
-              <div className={styles.field}>
-                Connected address
-                <code>{shortAddress}</code>
-              </div>
-              <div className={styles.field}>
-                Current streak
-                <code>{streak ?? "Not loaded"}</code>
-              </div>
-              <div className={styles.field}>
-                Last claim day
-                <code>{lastClaimDay ?? "Not loaded"}</code>
-              </div>
-              {lastTxId ? (
-                <div className={styles.field}>
-                  Last tx id
-                  <code>{lastTxId}</code>
-                </div>
-              ) : null}
-              {error ? <div className={styles.danger}>{error}</div> : null}
-            </div>
+            {error ? <div className={styles.danger}>{error}</div> : null}
           </div>
         </section>
 
         <section className={styles.panelGrid}>
-          <div className={styles.panel}>
-            <div className={styles.panelHeader}>
-              <h2>Claim your streak</h2>
-              <span className={styles.pill}>Daily</span>
-            </div>
-            <div className={styles.stack}>
-              <div className={styles.field}>
-                Contract
-                <code>
-                  {CONTRACT_ADDRESS}.{CONTRACT_NAME}
-                </code>
-              </div>
-              <div className={styles.footnote}>
-                Deployed on Stacks {STACKS_NETWORK}.
-              </div>
-            </div>
-          </div>
-
           <div className={styles.panel}>
             <div className={styles.panelHeader}>
               <h2>Badge milestone</h2>
@@ -865,7 +701,6 @@ export default function ClientPage() {
                     badgeStatus[milestone.kind] ??
                     (milestone.kind === 7 ? hasBadge ?? false : false);
                   const tokenId = badgeTokenIds[milestone.kind];
-                  const tokenUri = badgeUris[milestone.kind];
 
                   const canMint =
                     badgeSupport === "v2" &&
@@ -912,11 +747,6 @@ export default function ClientPage() {
                             Token: <code>{tokenId}</code>
                           </div>
                         ) : null}
-                        {tokenUri ? (
-                          <div className={styles.badgeLine}>
-                            Metadata: <code>{tokenUri}</code>
-                          </div>
-                        ) : null}
                         {canMint ? (
                           <button
                             className={`${styles.button} ${styles.ghostButton}`}
@@ -929,82 +759,6 @@ export default function ClientPage() {
                     </div>
                   );
                 })}
-              </div>
-
-              <div className={styles.field}>
-                Badge support
-                <code>
-                  {badgeSupport === null ? "Not loaded" : badgeSupport.toUpperCase()}
-                </code>
-              </div>
-
-              <div className={styles.field}>
-                Paid NFTs
-                <div className={styles.badgeGrid}>
-                  {PAID_NFT_KINDS.map((kind) => {
-                    const claimed = Boolean(badgeStatus[kind]);
-                    const tokenId = badgeTokenIds[kind];
-                    const tokenUri = badgeUris[kind];
-                    const configured = Boolean(tokenUri);
-                    const feeForKind = mintFeesByKind[kind] ?? mintFee;
-
-                    return (
-                      <div key={kind} className={styles.badgeCard}>
-                        <div className={styles.badgeThumb}>
-                          <Image
-                            src={BADGE_ASSETS[kind] ?? "/icons/icon.png"}
-                            alt={`Paid NFT kind ${kind}`}
-                            width={92}
-                            height={92}
-                            style={{ height: "auto" }}
-                          />
-                        </div>
-                        <div className={styles.badgeMeta}>
-                          <div className={styles.badgeTitle}>
-                            Kind <strong>{kind}</strong>
-                          </div>
-                          <div className={styles.badgeLine}>
-                            Status:{" "}
-                            <span className={claimed ? styles.success : styles.warn}>
-                              {claimed ? "Claimed" : "Not claimed"}
-                            </span>
-                          </div>
-                          {tokenId !== undefined && tokenId !== null ? (
-                            <div className={styles.badgeLine}>
-                              Token: <code>{tokenId}</code>
-                            </div>
-                          ) : null}
-                          <div className={styles.badgeLine}>
-                            Fee:{" "}
-                            <code>
-                              {feeForKind === null || !Number.isFinite(feeForKind)
-                                ? "Not loaded"
-                                : `${feeForKind} uSTX`}
-                            </code>
-                            {" | "}Recipient:{" "}
-                            <code>{feeRecipient ? feeRecipient : "Not loaded"}</code>
-                          </div>
-                          <div className={styles.badgeLine}>
-                            Metadata: <code>{tokenUri ? tokenUri : "Not set"}</code>
-                          </div>
-                          <button
-                            className={`${styles.button} ${styles.ghostButton}`}
-                            onClick={() => mintPaidKind(kind)}
-                            disabled={!address || !configured || claimed}
-                          >
-                            Mint
-                          </button>
-                          {!configured ? (
-                            <div className={styles.footnote}>
-                              Not configured yet. Ask the owner to set a token URI for
-                              kind <code>{kind}</code>.
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
               </div>
 
               <div className={styles.footnote}>
