@@ -53,6 +53,7 @@ export default function ClientPage() {
   const [error, setError] = useState<string>("");
   const [streak, setStreak] = useState<number | null>(null);
   const [lastClaimDay, setLastClaimDay] = useState<number | null>(null);
+  const [lastClaimLabel, setLastClaimLabel] = useState<string>("—");
   const [hasBadge, setHasBadge] = useState<boolean | null>(null);
   const [badgeSupport, setBadgeSupport] = useState<"v1" | "v2" | null>(null);
   const [badgeStatus, setBadgeStatus] = useState<Record<number, boolean>>({});
@@ -123,6 +124,54 @@ export default function ClientPage() {
     STACKS_NETWORK === "mainnet"
       ? "https://api.mainnet.hiro.so"
       : "https://api.testnet.hiro.so";
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function resolveLastClaim() {
+      if (lastClaimDay === null) {
+        setLastClaimLabel("—");
+        return;
+      }
+
+      // Our contract defines day = floor(stacks-block-height / 144)
+      // Use the first block height in that day to anchor a real timestamp.
+      const height = lastClaimDay * 144;
+      try {
+        const res = await fetch(
+          `${stacksApiBase}/extended/v1/block/by_height/${height}`
+        );
+        if (!res.ok) throw new Error("bad response");
+        const body = (await res.json()) as unknown;
+
+        const burnTime =
+          typeof body === "object" && body !== null && "burn_block_time" in body
+            ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (body as any).burn_block_time
+            : null;
+
+        const seconds =
+          typeof burnTime === "number"
+            ? burnTime
+            : typeof burnTime === "string"
+            ? Number(burnTime)
+            : NaN;
+
+        if (!Number.isFinite(seconds)) throw new Error("missing time");
+
+        const date = new Date(seconds * 1000);
+        const iso = date.toISOString().slice(0, 10);
+        if (!cancelled) setLastClaimLabel(iso);
+      } catch {
+        if (!cancelled) setLastClaimLabel(`Day ${lastClaimDay}`);
+      }
+    }
+
+    resolveLastClaim();
+    return () => {
+      cancelled = true;
+    };
+  }, [lastClaimDay, stacksApiBase]);
 
   const fetchContractOwner = useCallback(async () => {
     // Pull `contract-owner` data-var via Stacks API since it's not exposed as a read-only.
@@ -711,9 +760,9 @@ export default function ClientPage() {
                 </div>
               </div>
               <div className={styles.statChip}>
-                <div className={styles.statLabel}>Last claim day</div>
+                <div className={styles.statLabel}>Last claim</div>
                 <div className={styles.statValue}>
-                  {lastClaimDay === null ? "—" : lastClaimDay}
+                  {lastClaimLabel}
                 </div>
               </div>
               <button
