@@ -22,4 +22,11 @@ plan:
             path: contracts/streak-v3.clar
             anchor-block-only: true
             clarity-version: 3
+        - contract-publish:
+            contract-name: streak-v3-1
+            expected-sender: STC5KHM41H6WHAST7MWWDD807YSPRQKJ68T330BQ
+            cost: 78100
+            path: contracts/streak-v3-1.clar
+            anchor-block-only: true
+            clarity-version: 3
       epoch: "3.1"
