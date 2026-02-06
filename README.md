@@ -13,7 +13,8 @@ This repo contains two generations of the contract:
 - `contracts/streak-v3.clar`: streak tracking + configurable badge milestones + token URIs for metadata.
 - `contracts/streak-v3-1.clar`: redeploy name variant (when `streak-v3` is already taken).
 - `contracts/streak-v3-2.clar`: redeploy name variant that also auto-mints the 1-day badge on the first claim (if `u1` URI is configured).
-- `contracts/streak-v3-3.clar`: adds admin-configurable auto-mint milestones (`set-milestones`) + optional paid mint (`mint-paid-kind`) for special badges.
+- `contracts/streak-v3-3.clar`: adds admin-configurable auto-mint milestones (`set-milestones`) + optional paid mint (`mint-paid-kind`) that accumulates fees in the contract (withdrawable).
+- `contracts/streak-v3-4.clar`: same as v3-3, but paid mint fees go directly to a configurable `fee-recipient` wallet.
 
 ### Badge Metadata (IPFS)
 V2 supports token metadata URIs via `set-badge-uri(kind, uri)`:
@@ -36,7 +37,7 @@ Features:
 Set these Cloudflare Pages / local env vars:
 - `NEXT_PUBLIC_STACKS_NETWORK` = `mainnet` or `testnet`
 - `NEXT_PUBLIC_CONTRACT_ADDRESS` = `SP...` (mainnet) / `ST...` (testnet)
-- `NEXT_PUBLIC_CONTRACT_NAME` = `streak`, `streak-v3`, `streak-v3-1`, `streak-v3-2`, or `streak-v3-3`
+- `NEXT_PUBLIC_CONTRACT_NAME` = `streak`, `streak-v3`, `streak-v3-1`, `streak-v3-2`, `streak-v3-3`, or `streak-v3-4`
 
 If env vars are not set, the app falls back to defaults inside `app/ClientPage.tsx`.
 
