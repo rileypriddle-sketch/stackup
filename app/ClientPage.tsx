@@ -24,8 +24,16 @@ const CONTRACT_ADDRESS =
   process.env.NEXT_PUBLIC_CONTRACT_ADDRESS ??
   "SP2022VXQ3E384AAHQ15KFFXVN3CY5G57HWCCQX23";
 const CONTRACT_NAME = process.env.NEXT_PUBLIC_CONTRACT_NAME ?? "streak-v3-5";
-const STACKS_NETWORK = (process.env.NEXT_PUBLIC_STACKS_NETWORK ??
+const ENV_STACKS_NETWORK = (process.env.NEXT_PUBLIC_STACKS_NETWORK ??
   "mainnet") as "mainnet" | "testnet";
+
+// Cloudflare Pages env vars are easy to misconfigure. Derive the network from the
+// contract address first (SP=mainnet, ST=testnet), and only fall back to the env.
+const STACKS_NETWORK = (CONTRACT_ADDRESS.startsWith("SP")
+  ? "mainnet"
+  : CONTRACT_ADDRESS.startsWith("ST")
+    ? "testnet"
+    : ENV_STACKS_NETWORK) as "mainnet" | "testnet";
 
 const WALLET_NETWORK = STACKS_NETWORK;
 const ADDRESS_PREFIX = STACKS_NETWORK === "mainnet" ? "SP" : "ST";
@@ -230,15 +238,7 @@ export default function ClientPage() {
       ? "https://api.mainnet.hiro.so"
       : "https://api.testnet.hiro.so";
 
-  const stacksCoreApiBaseUrl =
-    typeof STACKS_NETWORK_OBJ === "object" &&
-    STACKS_NETWORK_OBJ !== null &&
-    "client" in STACKS_NETWORK_OBJ &&
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    typeof (STACKS_NETWORK_OBJ as any).client?.baseUrl === "string"
-      ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ((STACKS_NETWORK_OBJ as any).client.baseUrl as string)
-      : stacksApiBase;
+  const stacksCoreApiBaseUrl = stacksApiBase;
 
   const getOverrideForToken = useCallback(
     (tokenId: number, kind: number | null) => {
@@ -341,6 +341,7 @@ export default function ClientPage() {
                 functionName: "get-badge-kind",
                 functionArgs: [uintCV(tokenId)],
                 network: STACKS_NETWORK_OBJ,
+                client: { baseUrl: stacksApiBase },
                 senderAddress: CONTRACT_ADDRESS,
               }),
               fetchCallReadOnlyFunction({
@@ -349,6 +350,7 @@ export default function ClientPage() {
                 functionName: "get-token-uri",
                 functionArgs: [uintCV(tokenId)],
                 network: STACKS_NETWORK_OBJ,
+                client: { baseUrl: stacksApiBase },
                 senderAddress: CONTRACT_ADDRESS,
               }),
             ]);
@@ -611,7 +613,8 @@ export default function ClientPage() {
     const caller = CONTRACT_ADDRESS;
 
     // `sender` here means the *user principal we want to query* (not the call's senderAddress).
-    const sender = senderOverride || address || caller;
+    // Only query per-user state when we actually have a connected address (or an override).
+    const sender = senderOverride || address;
 
     try {
       // Quick connectivity check (avoids opaque "Failed to fetch" errors).
@@ -629,40 +632,61 @@ export default function ClientPage() {
         );
       }
 
-      const [streakCV, lastDayCV] = await Promise.all([
-        fetchCallReadOnlyFunction({
-          contractAddress: CONTRACT_ADDRESS,
-          contractName: CONTRACT_NAME,
-          functionName: "get-streak",
-          functionArgs: [principalCV(sender)],
-          network: STACKS_NETWORK_OBJ,
-          senderAddress: caller,
-        }),
-        fetchCallReadOnlyFunction({
-          contractAddress: CONTRACT_ADDRESS,
-          contractName: CONTRACT_NAME,
-          functionName: "get-last-claim-day",
-          functionArgs: [principalCV(sender)],
-          network: STACKS_NETWORK_OBJ,
-          senderAddress: caller,
-        }),
-      ]);
+      if (sender) {
+        try {
+          const [streakCV, lastDayCV] = await Promise.all([
+            fetchCallReadOnlyFunction({
+              contractAddress: CONTRACT_ADDRESS,
+              contractName: CONTRACT_NAME,
+              functionName: "get-streak",
+              functionArgs: [principalCV(sender)],
+              network: STACKS_NETWORK_OBJ,
+              client: { baseUrl: stacksApiBase },
+              senderAddress: caller,
+            }),
+            fetchCallReadOnlyFunction({
+              contractAddress: CONTRACT_ADDRESS,
+              contractName: CONTRACT_NAME,
+              functionName: "get-last-claim-day",
+              functionArgs: [principalCV(sender)],
+              network: STACKS_NETWORK_OBJ,
+              client: { baseUrl: stacksApiBase },
+              senderAddress: caller,
+            }),
+          ]);
 
-      const streakValue = cvToValue(streakCV) as unknown;
-      const lastDayValue = cvToValue(lastDayCV) as unknown;
-      setStreak(
-        typeof streakValue === "bigint"
-          ? Number(streakValue)
-          : (streakValue as number)
-      );
-      setLastClaimDay(
-        typeof lastDayValue === "bigint"
-          ? Number(lastDayValue)
-          : (lastDayValue as number)
-      );
+          const streakValue = cvToValue(streakCV) as unknown;
+          const lastDayValue = cvToValue(lastDayCV) as unknown;
+          setStreak(
+            typeof streakValue === "bigint"
+              ? Number(streakValue)
+              : (streakValue as number)
+          );
+          setLastClaimDay(
+            typeof lastDayValue === "bigint"
+              ? Number(lastDayValue)
+              : (lastDayValue as number)
+          );
+        } catch {
+          // Don't block global config (fees, milestones) just because the connected wallet
+          // is on a different network / has an address that doesn't match the contract network.
+          setStreak(null);
+          setLastClaimDay(null);
+        }
+      } else {
+        setStreak(null);
+        setLastClaimDay(null);
+      }
 
-      const loadV2Badges = async () => {
-        const kindsToCheck = Array.from(new Set(BADGE_MILESTONES.map((m) => m.kind)));
+      const loadV2Badges = async () => { 
+        if (!sender) {
+          setBadgeSupport(null);
+          setHasBadge(null);
+          setBadgeStatus({});
+          setBadgeTokenIds({});
+          return;
+        }
+        const kindsToCheck = Array.from(new Set(BADGE_MILESTONES.map((m) => m.kind))); 
 
         const badgeChecks = await Promise.all(
           kindsToCheck.map(async (kind) => {
@@ -673,6 +697,7 @@ export default function ClientPage() {
                 functionName: "has-badge-kind",
                 functionArgs: [principalCV(sender), uintCV(kind)],
                 network: STACKS_NETWORK_OBJ,
+                client: { baseUrl: stacksApiBase },
                 senderAddress: caller,
               }),
               fetchCallReadOnlyFunction({
@@ -681,6 +706,7 @@ export default function ClientPage() {
                 functionName: "get-badge-token-id",
                 functionArgs: [principalCV(sender), uintCV(kind)],
                 network: STACKS_NETWORK_OBJ,
+                client: { baseUrl: stacksApiBase },
                 senderAddress: caller,
               }),
             ]);
@@ -713,23 +739,38 @@ export default function ClientPage() {
         setHasBadge(Boolean(nextStatus[7]));
       };
 
-      try {
-        await loadV2Badges();
-      } catch {
-        const badgeCV = await fetchCallReadOnlyFunction({
-          contractAddress: CONTRACT_ADDRESS,
-          contractName: CONTRACT_NAME,
-          functionName: "has-badge",
-          functionArgs: [principalCV(sender)],
-          network: STACKS_NETWORK_OBJ,
-          senderAddress: caller,
-        });
-        const badgeValue = cvToValue(badgeCV) as unknown;
-        setBadgeSupport("v1");
-        setHasBadge(Boolean(badgeValue));
-        setBadgeStatus({ 7: Boolean(badgeValue) });
-        setBadgeTokenIds({});
-      }
+      try { 
+        await loadV2Badges(); 
+      } catch { 
+        if (!sender) {
+          setBadgeSupport(null);
+          setHasBadge(null);
+          setBadgeStatus({});
+          setBadgeTokenIds({});
+          return;
+        }
+        try {
+          const badgeCV = await fetchCallReadOnlyFunction({
+            contractAddress: CONTRACT_ADDRESS,
+            contractName: CONTRACT_NAME,
+            functionName: "has-badge",
+            functionArgs: [principalCV(sender)],
+            network: STACKS_NETWORK_OBJ,
+            client: { baseUrl: stacksApiBase },
+            senderAddress: caller,
+          });
+          const badgeValue = cvToValue(badgeCV) as unknown;
+          setBadgeSupport("v1");
+          setHasBadge(Boolean(badgeValue));
+          setBadgeStatus({ 7: Boolean(badgeValue) });
+          setBadgeTokenIds({});
+        } catch {
+          setBadgeSupport(null);
+          setHasBadge(null);
+          setBadgeStatus({});
+          setBadgeTokenIds({});
+        }
+      } 
 
       try {
         const [
@@ -738,48 +779,53 @@ export default function ClientPage() {
           infernoUriCV,
           stormFeeCV,
           stormUriCV,
-        ] = await Promise.all([
-          fetchCallReadOnlyFunction({
-            contractAddress: CONTRACT_ADDRESS,
-            contractName: CONTRACT_NAME,
-            functionName: "get-milestones",
-            functionArgs: [],
-            network: STACKS_NETWORK_OBJ,
-            senderAddress: caller,
-          }),
-          fetchCallReadOnlyFunction({
-            contractAddress: CONTRACT_ADDRESS,
-            contractName: CONTRACT_NAME,
-            functionName: "get-mint-fee-kind",
-            functionArgs: [uintCV(INFERNO_PULSE.kind)],
-            network: STACKS_NETWORK_OBJ,
-            senderAddress: caller,
-          }),
-          fetchCallReadOnlyFunction({
-            contractAddress: CONTRACT_ADDRESS,
-            contractName: CONTRACT_NAME,
-            functionName: "get-badge-uri",
-            functionArgs: [uintCV(INFERNO_PULSE.kind)],
-            network: STACKS_NETWORK_OBJ,
-            senderAddress: caller,
-          }),
-          fetchCallReadOnlyFunction({
-            contractAddress: CONTRACT_ADDRESS,
-            contractName: CONTRACT_NAME,
-            functionName: "get-mint-fee-kind",
-            functionArgs: [uintCV(STORM_ASSASIN.kind)],
-            network: STACKS_NETWORK_OBJ,
-            senderAddress: caller,
-          }),
-          fetchCallReadOnlyFunction({
-            contractAddress: CONTRACT_ADDRESS,
-            contractName: CONTRACT_NAME,
-            functionName: "get-badge-uri",
-            functionArgs: [uintCV(STORM_ASSASIN.kind)],
-            network: STACKS_NETWORK_OBJ,
-            senderAddress: caller,
-          }),
-        ]);
+        ] = await Promise.all([ 
+          fetchCallReadOnlyFunction({ 
+            contractAddress: CONTRACT_ADDRESS, 
+            contractName: CONTRACT_NAME, 
+            functionName: "get-milestones", 
+            functionArgs: [], 
+            network: STACKS_NETWORK_OBJ, 
+            client: { baseUrl: stacksApiBase },
+            senderAddress: caller, 
+          }), 
+          fetchCallReadOnlyFunction({ 
+            contractAddress: CONTRACT_ADDRESS, 
+            contractName: CONTRACT_NAME, 
+            functionName: "get-mint-fee-kind", 
+            functionArgs: [uintCV(INFERNO_PULSE.kind)], 
+            network: STACKS_NETWORK_OBJ, 
+            client: { baseUrl: stacksApiBase },
+            senderAddress: caller, 
+          }), 
+          fetchCallReadOnlyFunction({ 
+            contractAddress: CONTRACT_ADDRESS, 
+            contractName: CONTRACT_NAME, 
+            functionName: "get-badge-uri", 
+            functionArgs: [uintCV(INFERNO_PULSE.kind)], 
+            network: STACKS_NETWORK_OBJ, 
+            client: { baseUrl: stacksApiBase },
+            senderAddress: caller, 
+          }), 
+          fetchCallReadOnlyFunction({ 
+            contractAddress: CONTRACT_ADDRESS, 
+            contractName: CONTRACT_NAME, 
+            functionName: "get-mint-fee-kind", 
+            functionArgs: [uintCV(STORM_ASSASIN.kind)], 
+            network: STACKS_NETWORK_OBJ, 
+            client: { baseUrl: stacksApiBase },
+            senderAddress: caller, 
+          }), 
+          fetchCallReadOnlyFunction({ 
+            contractAddress: CONTRACT_ADDRESS, 
+            contractName: CONTRACT_NAME, 
+            functionName: "get-badge-uri", 
+            functionArgs: [uintCV(STORM_ASSASIN.kind)], 
+            network: STACKS_NETWORK_OBJ, 
+            client: { baseUrl: stacksApiBase },
+            senderAddress: caller, 
+          }), 
+        ]); 
 
         const ms = cvToValue(milestonesCV) as unknown;
 
@@ -825,14 +871,15 @@ export default function ClientPage() {
           const kindsToLoad = BADGE_MILESTONES.map((m) => m.kind);
           const uriPairs = await Promise.all(
             kindsToLoad.map(async (kind) => {
-              const v = await fetchCallReadOnlyFunction({
-                contractAddress: CONTRACT_ADDRESS,
-                contractName: CONTRACT_NAME,
-                functionName: "get-badge-uri",
-                functionArgs: [uintCV(kind)],
-                network: STACKS_NETWORK_OBJ,
-                senderAddress: caller,
-              });
+              const v = await fetchCallReadOnlyFunction({ 
+                contractAddress: CONTRACT_ADDRESS, 
+                contractName: CONTRACT_NAME, 
+                functionName: "get-badge-uri", 
+                functionArgs: [uintCV(kind)], 
+                network: STACKS_NETWORK_OBJ, 
+                client: { baseUrl: stacksApiBase },
+                senderAddress: caller, 
+              }); 
               const u = unwrapCvToValue(cvToValue(v) as unknown);
               return [kind, typeof u === "string" ? u : null] as const;
             })
@@ -849,12 +896,13 @@ export default function ClientPage() {
         setMilestones(null);
       }
 
-      if (senderOverride || address) {
-        await loadOwnedCollectibles(sender);
-      } else {
-        setCollectibles([]);
-        setCollectiblesStatus("idle");
-      }
+      const ownedSender = senderOverride || address;
+      if (ownedSender) { 
+        await loadOwnedCollectibles(ownedSender); 
+      } else { 
+        setCollectibles([]); 
+        setCollectiblesStatus("idle"); 
+      } 
 
       setStatus("On-chain data refreshed");
     } catch (err) {
@@ -865,19 +913,22 @@ export default function ClientPage() {
             ? err
             : "Unknown error";
 
-      // Common foot-gun: wallet on testnet while app is set to mainnet (or vice-versa).
+      const walletNet = walletAddress.startsWith("SP")
+        ? "mainnet"
+        : walletAddress.startsWith("ST")
+          ? "testnet"
+          : null;
+
       const networkHint =
-        walletAddress &&
-        ((STACKS_NETWORK === "mainnet" && walletAddress.startsWith("ST")) ||
-          (STACKS_NETWORK === "testnet" && walletAddress.startsWith("SP")))
-          ? " (Wallet/network mismatch: switch Leather network to match the app.)"
+        walletNet && walletNet !== STACKS_NETWORK
+          ? ` (Wallet is ${walletNet}, contract is ${STACKS_NETWORK}. Switch Leather network/account.)`
           : "";
 
       setError(`Failed to fetch on-chain data: ${message}${networkHint}`);
     } finally {
       setIsLoading(false);
     }
-  }, [address, loadOwnedCollectibles, stacksCoreApiBaseUrl, walletAddress]);
+  }, [address, loadOwnedCollectibles, stacksApiBase, stacksCoreApiBaseUrl, walletAddress]); 
 
   const scheduleRefresh = useCallback(
     (senderOverride?: string) => {
