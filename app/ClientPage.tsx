@@ -84,6 +84,23 @@ const ipfsToHttpsCandidates = (uri: string) => {
   ];
 };
 
+const unwrapCvToValue = (v: unknown): unknown => {
+  if (v === null || v === undefined) return null;
+  if (typeof v === "string" || typeof v === "number" || typeof v === "bigint") {
+    return v;
+  }
+
+  if (typeof v === "object") {
+    const obj = v as Record<string, unknown>;
+
+    // Some cvToValue outputs wrap optionals/responses as { type, value } or { value }.
+    if ("value" in obj) return unwrapCvToValue(obj.value);
+    if ("data" in obj) return unwrapCvToValue(obj.data);
+  }
+
+  return null;
+};
+
 export default function ClientPage() {
   const [walletAddress, setWalletAddress] = useState<string>("");
   const [status, setStatus] = useState<string>("Not connected");
@@ -311,16 +328,18 @@ export default function ClientPage() {
               }),
             ]);
 
-            const kindVal = cvToValue(kindCV) as unknown;
+            const kindUnwrapped = unwrapCvToValue(cvToValue(kindCV) as unknown);
             const kind =
-              kindVal === null
+              kindUnwrapped === null
                 ? null
-                : typeof kindVal === "bigint"
-                  ? Number(kindVal)
-                  : Number(kindVal);
+                : typeof kindUnwrapped === "bigint"
+                  ? Number(kindUnwrapped)
+                  : typeof kindUnwrapped === "number"
+                    ? kindUnwrapped
+                    : null;
 
-            const uriVal = cvToValue(uriCV) as unknown;
-            const metadataUri = typeof uriVal === "string" ? uriVal : null;
+            const uriUnwrapped = unwrapCvToValue(cvToValue(uriCV) as unknown);
+            const metadataUri = typeof uriUnwrapped === "string" ? uriUnwrapped : null;
 
             return { tokenId, kind, metadataUri };
           })
@@ -331,6 +350,9 @@ export default function ClientPage() {
         const collectibleItems: OwnedCollectible[] = [];
         for (const info of tokenInfo) {
           if (info.kind !== null && badgeKinds.has(info.kind)) continue;
+          if (info.kind === null) {
+            // If we can't resolve kind, treat it as non-badge but keep it safe in UI.
+          }
 
           const override = getOverrideForToken(info.tokenId, info.kind);
 
