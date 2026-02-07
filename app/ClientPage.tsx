@@ -55,11 +55,21 @@ type OwnedCollectible = {
   metadataUri: string | null;
 };
 
-const ipfsToHttps = (uri: string) => {
-  if (uri.startsWith("ipfs://")) {
-    return `https://ipfs.io/ipfs/${uri.slice("ipfs://".length)}`;
-  }
-  return uri;
+const INFERNO_PULSE = {
+  metadataCid: "bafkreictvrsqz6gg6yxhqwlrdbnpafyrk72wcyc6odejbkyhtg7qmk2g5y",
+  imageCid: "bafybeidm2pqh5ty5ltlt4zpl3osy2t27annf5zui5ur6j6uxwk2oco24zm",
+  localImagePath: "/nfts/inferno-pulse.png",
+  name: "StackUp: Inferno Pulse",
+} as const;
+
+const ipfsToHttpsCandidates = (uri: string) => {
+  if (!uri.startsWith("ipfs://")) return [uri];
+  const cid = uri.slice("ipfs://".length);
+  return [
+    `https://cloudflare-ipfs.com/ipfs/${cid}`,
+    `https://gateway.pinata.cloud/ipfs/${cid}`,
+    `https://ipfs.io/ipfs/${cid}`,
+  ];
 };
 
 export default function ClientPage() {
@@ -252,13 +262,25 @@ export default function ClientPage() {
 
           if (info.metadataUri) {
             try {
-              const mRes = await fetch(ipfsToHttps(info.metadataUri));
-              if (mRes.ok) {
-                const meta: unknown = await mRes.json();
-                const metaObj = meta as { name?: unknown; image?: unknown };
-                if (typeof metaObj.name === "string") name = metaObj.name;
-                if (typeof metaObj.image === "string") {
-                  imageUrl = ipfsToHttps(metaObj.image);
+              if (info.metadataUri.endsWith(INFERNO_PULSE.metadataCid)) {
+                name = INFERNO_PULSE.name;
+                imageUrl = INFERNO_PULSE.localImagePath;
+              } else {
+                const urls = ipfsToHttpsCandidates(info.metadataUri);
+                for (const url of urls) {
+                  const mRes = await fetch(url);
+                  if (!mRes.ok) continue;
+                  const meta: unknown = await mRes.json();
+                  const metaObj = meta as { name?: unknown; image?: unknown };
+                  if (typeof metaObj.name === "string") name = metaObj.name;
+                  if (typeof metaObj.image === "string") {
+                    if (metaObj.image.endsWith(INFERNO_PULSE.imageCid)) {
+                      imageUrl = INFERNO_PULSE.localImagePath;
+                    } else {
+                      imageUrl = ipfsToHttpsCandidates(metaObj.image)[0] ?? null;
+                    }
+                  }
+                  break;
                 }
               }
             } catch {
