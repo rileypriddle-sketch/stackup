@@ -1,52 +1,74 @@
 # StackUp
 
-Daily streaks on Stacks. Connect your wallet, claim once per day, and earn NFT badge milestones on-chain.
+![StackUp](./stackup.png)
 
-## What It Does
-- `claim()` once per day to build a streak.
-- If you miss a day, your streak resets to `1`.
-- Badge NFTs are minted automatically at milestone streaks (V2 supports multiple milestones).
+StackUp is a Stacks dApp for building daily momentum: claim once per day, grow your streak, and unlock on-chain badge NFTs at milestone days.
 
-## Contracts
-This repo contains two generations of the contract:
-- `contracts/streak.clar` (V1): streak tracking + 7-day badge.
-- `contracts/streak-v3.clar`: streak tracking + configurable badge milestones + token URIs for metadata.
-- `contracts/streak-v3-1.clar`: redeploy name variant (when `streak-v3` is already taken).
-- `contracts/streak-v3-2.clar`: redeploy name variant that also auto-mints the 1-day badge on the first claim (if `u1` URI is configured).
-- `contracts/streak-v3-3.clar`: adds admin-configurable auto-mint milestones (`set-milestones`) + optional paid mint (`mint-paid-kind`) that accumulates fees in the contract (withdrawable).
-- `contracts/streak-v3-4.clar`: same as v3-3, but paid mint fees go directly to a configurable `fee-recipient` wallet.
-- `contracts/streak-v3-5.clar`: same as v3-4, but supports per-kind mint fees via `set-mint-fee-kind` / `get-mint-fee-kind` (fallbacks to global `mint-fee`).
-
-### Badge Metadata (IPFS)
-V2 supports token metadata URIs via `set-badge-uri(kind, uri)`:
-- Upload PNGs + metadata JSON files to IPFS (Pinata is fine).
-- Set the `ipfs://...` metadata URI for each milestone kind (e.g. `3`, `7`, `14`, `30`).
-
-Metadata templates live in `metadata/`.
-
-## App
-The frontend is a Next.js App Router project.
-
-Features:
+**What You Get**
 - Leather wallet connect
-- Claim transaction flow (`openContractCall`)
-- Read-only on-chain state (streak, last-claim day, badge status)
-- Light / dark theme
-- Badge gallery (3 / 7 / 14 / 30) + custom milestone check/mint UI (V2)
+- One-tap daily `claim` transaction
+- On-chain reads: current streak, last claim day, owned badges
+- Milestone badge gallery (1 / 3 / 7 / 14 / 30 by default)
+- Owner-only admin panel (hidden behind 7 logo taps) for milestones + metadata URIs
 
-### Configuration (Frontend)
-Set these Cloudflare Pages / local env vars:
-- `NEXT_PUBLIC_STACKS_NETWORK` = `mainnet` or `testnet`
-- `NEXT_PUBLIC_CONTRACT_ADDRESS` = `SP...` (mainnet) / `ST...` (testnet)
-- `NEXT_PUBLIC_CONTRACT_NAME` = `streak`, `streak-v3`, `streak-v3-1`, `streak-v3-2`, `streak-v3-3`, `streak-v3-4`, or `streak-v3-5`
+## Live Contract (Mainnet)
+Default app target:
+- `SP2022VXQ3E384AAHQ15KFFXVN3CY5G57HWCCQX23.streak-v3-5`
 
-If env vars are not set, the app falls back to defaults inside `app/ClientPage.tsx`.
+## How Badges Work
+Badge NFTs are minted automatically by the contract when a streak milestone is reached.
 
-## Development
-Requirements:
-- Node.js + npm
+Badge art lives off-chain (IPFS) and is referenced by an on-chain token URI.
+- Upload PNG + metadata JSON to IPFS (Pinata is fine).
+- Set the URI on-chain via the admin function `set-badge-uri(kind, uri)`.
+- When a user hits that milestone, the contract mints the NFT and the wallet/explorer can resolve the token URI.
 
-Install + run:
+Metadata templates:
+- `metadata/`
+
+## Smart Contracts
+Stacks contracts are immutable. This repo keeps versioned contract files so you can deploy a new name when you iterate.
+
+Current contract (recommended):
+- `contracts/streak-v3-5.clar`
+
+History:
+- `contracts/streak.clar` (v1): streak + 7-day badge
+- `contracts/streak-v3.clar`: configurable badge milestones + token URIs
+- `contracts/streak-v3-1.clar`: redeploy name variant
+- `contracts/streak-v3-2.clar`: auto-mint 1-day badge on first claim (if `u1` URI is configured)
+- `contracts/streak-v3-3.clar`: admin-configurable milestones + optional paid mint (fees collected by contract)
+- `contracts/streak-v3-4.clar`: paid mint fees routed directly to a configurable `fee-recipient`
+- `contracts/streak-v3-5.clar`: per-kind mint fees (fallback to global fee)
+
+If a contract name is already taken on a network, deploy the next versioned name and point the frontend at it via env vars.
+
+## Contract Surface (High-Level)
+Read-only:
+- `get-streak(user)`
+- `get-last-claim-day(user)`
+- `get-owner(token-id)` and `get-token-uri(token-id)` (SIP-009-style)
+
+User actions:
+- `claim` (once per day, on-chain)
+
+Owner/admin actions:
+- `set-badge-uri(kind, uri)` (sets IPFS metadata URI for a badge kind)
+- `set-milestones(list-of-kinds)` (configures which streak days mint badges automatically)
+- `set-fee-recipient(principal)` (where paid mint fees are routed)
+- `set-mint-fee(microstx)` and `set-mint-fee-kind(kind, microstx)` (configures paid mint pricing)
+- `mint-paid-kind(kind)` (paid mint path, when enabled/configured)
+
+## Frontend Config
+Set these as Cloudflare Pages environment variables (or in a local `.env` file):
+- `NEXT_PUBLIC_STACKS_NETWORK`: `mainnet` or `testnet`
+- `NEXT_PUBLIC_CONTRACT_ADDRESS`: `SP...` (mainnet) or `ST...` (testnet)
+- `NEXT_PUBLIC_CONTRACT_NAME`: e.g. `streak-v3-5`
+- `NEXT_PUBLIC_SITE_URL`: your deployed site URL (used for absolute OG/Twitter tags)
+
+If not set, the app falls back to defaults in `app/ClientPage.tsx`.
+
+## Local Development
 ```bash
 npm install
 npm run dev
@@ -54,23 +76,23 @@ npm run dev
 
 Open `http://localhost:3000`.
 
-## Scripts
+Quality checks:
 ```bash
-npm run dev
-npm run build
-npm run start
 npm run lint
-npm run test
+npm test
+npm run build
 ```
 
 ## Deploy (Cloudflare Pages)
-This project is configured for static export.
-
-Recommended Pages settings:
+This app is configured for static export (`next.config.ts` sets `output: "export"`).
 - Build command: `npm run build`
 - Build output directory: `out`
 
-`wrangler.toml` is included for Pages configuration.
+## Share Preview (Open Graph)
+The share card image is `public/og.png` (1200x630). Regenerate it with:
+```bash
+node scripts/gen-og.mjs
+```
 
 ## Brand Assets
 - Logos: `public/logo/`
