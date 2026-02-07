@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { connect, disconnect, openContractCall, request } from "@stacks/connect";
 import { STACKS_MAINNET, STACKS_TESTNET } from "@stacks/network";
 import {
+  PostConditionMode,
   cvToValue,
   fetchCallReadOnlyFunction,
   hexToCV,
@@ -1085,6 +1086,10 @@ export default function ClientPage() {
       setError("Connect wallet first.");
       return;
     }
+    if (infernoFeeUstx === null) {
+      setError("Price not loaded yet. Click “Refresh On-Chain” and try again.");
+      return;
+    }
 
     setError("");
     setStatus("Minting Inferno Pulse...");
@@ -1095,6 +1100,9 @@ export default function ClientPage() {
         contractName: CONTRACT_NAME,
         functionName: "mint-paid-kind",
         functionArgs: [uintCV(INFERNO_PULSE.kind)],
+        // This call transfers STX as a mint fee. In Allow mode, the wallet
+        // doesn't require us to enumerate the exact STX movement as a post-condition.
+        postConditionMode: PostConditionMode.Allow,
         network: STACKS_NETWORK_OBJ,
         appDetails: {
           name: APP_NAME,
