@@ -321,7 +321,7 @@ export default function ClientPage() {
                 functionName: "get-badge-kind",
                 functionArgs: [uintCV(tokenId)],
                 network: STACKS_NETWORK_OBJ,
-                senderAddress: principal,
+                senderAddress: CONTRACT_ADDRESS,
               }),
               fetchCallReadOnlyFunction({
                 contractAddress: CONTRACT_ADDRESS,
@@ -329,7 +329,7 @@ export default function ClientPage() {
                 functionName: "get-token-uri",
                 functionArgs: [uintCV(tokenId)],
                 network: STACKS_NETWORK_OBJ,
-                senderAddress: principal,
+                senderAddress: CONTRACT_ADDRESS,
               }),
             ]);
 
@@ -586,7 +586,12 @@ export default function ClientPage() {
     setIsLoading(true);
     setError("");
 
-    const sender = senderOverride || address || CONTRACT_ADDRESS;
+    // `fetchCallReadOnlyFunction` expects `senderAddress` to be valid for the selected network.
+    // Use the contract address as the caller to avoid mainnet/testnet address mismatches.
+    const caller = CONTRACT_ADDRESS;
+
+    // `sender` here means the *user principal we want to query* (not the call's senderAddress).
+    const sender = senderOverride || address || caller;
 
     try {
       const [streakCV, lastDayCV] = await Promise.all([
@@ -596,7 +601,7 @@ export default function ClientPage() {
           functionName: "get-streak",
           functionArgs: [principalCV(sender)],
           network: STACKS_NETWORK_OBJ,
-          senderAddress: sender,
+          senderAddress: caller,
         }),
         fetchCallReadOnlyFunction({
           contractAddress: CONTRACT_ADDRESS,
@@ -604,7 +609,7 @@ export default function ClientPage() {
           functionName: "get-last-claim-day",
           functionArgs: [principalCV(sender)],
           network: STACKS_NETWORK_OBJ,
-          senderAddress: sender,
+          senderAddress: caller,
         }),
       ]);
 
@@ -633,7 +638,7 @@ export default function ClientPage() {
                 functionName: "has-badge-kind",
                 functionArgs: [principalCV(sender), uintCV(kind)],
                 network: STACKS_NETWORK_OBJ,
-                senderAddress: sender,
+                senderAddress: caller,
               }),
               fetchCallReadOnlyFunction({
                 contractAddress: CONTRACT_ADDRESS,
@@ -641,7 +646,7 @@ export default function ClientPage() {
                 functionName: "get-badge-token-id",
                 functionArgs: [principalCV(sender), uintCV(kind)],
                 network: STACKS_NETWORK_OBJ,
-                senderAddress: sender,
+                senderAddress: caller,
               }),
             ]);
             return {
@@ -682,7 +687,7 @@ export default function ClientPage() {
           functionName: "has-badge",
           functionArgs: [principalCV(sender)],
           network: STACKS_NETWORK_OBJ,
-          senderAddress: sender,
+          senderAddress: caller,
         });
         const badgeValue = cvToValue(badgeCV) as unknown;
         setBadgeSupport("v1");
@@ -692,7 +697,6 @@ export default function ClientPage() {
       }
 
       try {
-        const senderAddress = sender;
         const [milestonesCV, infernoFeeCV, infernoUriCV] = await Promise.all([
           fetchCallReadOnlyFunction({
             contractAddress: CONTRACT_ADDRESS,
@@ -700,7 +704,7 @@ export default function ClientPage() {
             functionName: "get-milestones",
             functionArgs: [],
             network: STACKS_NETWORK_OBJ,
-            senderAddress,
+            senderAddress: caller,
           }),
           fetchCallReadOnlyFunction({
             contractAddress: CONTRACT_ADDRESS,
@@ -708,7 +712,7 @@ export default function ClientPage() {
             functionName: "get-mint-fee-kind",
             functionArgs: [uintCV(INFERNO_PULSE.kind)],
             network: STACKS_NETWORK_OBJ,
-            senderAddress,
+            senderAddress: caller,
           }),
           fetchCallReadOnlyFunction({
             contractAddress: CONTRACT_ADDRESS,
@@ -716,7 +720,7 @@ export default function ClientPage() {
             functionName: "get-badge-uri",
             functionArgs: [uintCV(INFERNO_PULSE.kind)],
             network: STACKS_NETWORK_OBJ,
-            senderAddress,
+            senderAddress: caller,
           }),
         ]);
 
@@ -756,7 +760,7 @@ export default function ClientPage() {
                 functionName: "get-badge-uri",
                 functionArgs: [uintCV(kind)],
                 network: STACKS_NETWORK_OBJ,
-                senderAddress,
+                senderAddress: caller,
               });
               const u = unwrapCvToValue(cvToValue(v) as unknown);
               return [kind, typeof u === "string" ? u : null] as const;
