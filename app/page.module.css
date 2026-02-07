@@ -841,7 +841,7 @@
   }
 
   .nftGrid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .dropGrid {
@@ -851,6 +851,12 @@
   .statChip {
     min-width: 0;
     flex: 1 1 140px;
+  }
+}
+
+@media (max-width: 420px) {
+  .nftGrid {
+    grid-template-columns: 1fr;
   }
 }
 
