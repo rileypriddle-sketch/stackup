@@ -1,0 +1,11 @@
+{
+  "name": "StackUp: Inferno Pulse",
+  "description": "A limited StackUp collectible. Minted on Stacks and referenced via IPFS metadata.",
+  "image": "ipfs://bafybeidm2pqh5ty5ltlt4zpl3osy2t27annf5zui5ur6j6uxwk2oco24zm",
+  "attributes": [
+    { "trait_type": "collection", "value": "StackUp" },
+    { "trait_type": "type", "value": "collectible" },
+    { "trait_type": "slug", "value": "inferno-pulse" }
+  ]
+}
+
