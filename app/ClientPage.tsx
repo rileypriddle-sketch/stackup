@@ -786,8 +786,22 @@ export default function ClientPage() {
       }
 
       setStatus("On-chain data refreshed");
-    } catch {
-      setError("Failed to fetch on-chain data.");
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === "string"
+            ? err
+            : "Unknown error";
+
+      // Common foot-gun: wallet on testnet while app is set to mainnet (or vice-versa).
+      const networkHint =
+        (STACKS_NETWORK === "mainnet" && sender.startsWith("ST")) ||
+        (STACKS_NETWORK === "testnet" && sender.startsWith("SP"))
+          ? " (Wallet/network mismatch: switch Leather network to match the app.)"
+          : "";
+
+      setError(`Failed to fetch on-chain data: ${message}${networkHint}`);
     } finally {
       setIsLoading(false);
     }
