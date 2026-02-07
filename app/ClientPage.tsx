@@ -1356,38 +1356,38 @@ export default function ClientPage() {
               <span className={styles.pill}>Owned</span>
             </div>
             <div className={styles.stack}>
-              <div className={styles.dropCard}>
-                <div className={styles.dropLeft}>
-                  <div className={styles.dropThumb}>
+              <div className={styles.dropGrid}>
+                <div className={styles.dropTile}>
+                  <div className={styles.dropTileThumb}>
                     <Image
                       src={INFERNO_PULSE.localImagePath}
                       alt={INFERNO_PULSE.name}
-                      width={96}
-                      height={96}
+                      width={520}
+                      height={520}
                       unoptimized
-                      style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "contain",
+                      }}
                     />
                   </div>
-                  <div className={styles.dropMeta}>
-                    <div className={styles.dropTitle}>{INFERNO_PULSE.name}</div>
-                    <div className={styles.dropLine}>
+                  <div className={styles.dropTileBody}>
+                    <div className={styles.dropTileTitle}>{INFERNO_PULSE.name}</div>
+                    <div className={styles.dropTileLine}>
                       Kind <code>u{INFERNO_PULSE.kind}</code>
                       {" · "}
                       {infernoFeeUstx === null
                         ? "Price: —"
                         : `Price: ${(infernoFeeUstx / 1_000_000).toFixed(2)} STX`}
                     </div>
-                    <div className={styles.dropLine}>
+                    <div className={styles.dropTileLine}>
                       Metadata:{" "}
-                      <span>
-                        {infernoUri ? "Configured" : "Not configured"}
-                      </span>
+                      <span>{infernoUri ? "Configured" : "Not configured"}</span>
                     </div>
                   </div>
-                </div>
-                <div className={styles.dropRight}>
                   <button
-                    className={styles.button}
+                    className={`${styles.button} ${styles.dropTileButton}`}
                     onClick={mintInfernoPulse}
                     disabled={!address || !infernoUri}
                     type="button"

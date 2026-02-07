@@ -145,7 +145,7 @@
 
 .panelGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: 1fr;
   gap: 24px;
 }
 
@@ -406,6 +406,81 @@
 [data-theme="light"] .dropCard {
   border-color: rgba(0, 0, 0, 0.12);
   background: rgba(0, 0, 0, 0.02);
+}
+
+.dropGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.dropTile {
+  padding: 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+[data-theme="light"] .dropTile {
+  border-color: rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.dropTileThumb {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+
+[data-theme="light"] .dropTileThumb {
+  border-color: rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.dropTileBody {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.dropTileTitle {
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--text);
+}
+
+.dropTileLine {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.dropTileLine span {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.dropTileLine code {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  display: inline-block;
+  vertical-align: bottom;
+}
+
+.dropTileButton {
+  width: 100%;
 }
 
 .dropLeft {
@@ -762,6 +837,14 @@
   }
 
   .badgeGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .nftGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .dropGrid {
     grid-template-columns: 1fr;
   }
 
