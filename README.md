@@ -9,7 +9,7 @@ StackUp is a Stacks dApp for building daily momentum: claim once per day, grow y
 - One-tap daily `claim` transaction
 - On-chain reads: current streak, last claim day, owned badges
 - Milestone badge gallery (1 / 3 / 7 / 14 / 30 by default)
-- Owner-only admin panel (hidden behind 7 logo taps) for milestones + metadata URIs
+- Owner-only admin panel for milestones + metadata URIs
 
 ## Live Contract (Mainnet)
 Default app target:
