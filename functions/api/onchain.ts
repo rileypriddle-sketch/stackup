@@ -129,16 +129,32 @@ async function callReadOnly(opts: {
   functionArgs: ClarityValue[];
   senderAddress: string;
 }): Promise<unknown> {
-  const cv = await fetchCallReadOnlyFunction({
-    contractAddress: opts.contractAddress,
-    contractName: opts.contractName,
-    functionName: opts.functionName,
-    functionArgs: opts.functionArgs,
-    network: STACKS_NETWORK_OBJ,
-    client: { baseUrl: STACKS_API_BASE },
-    senderAddress: opts.senderAddress,
-  });
-  return unwrapCvToValue(cvToValue(cv) as unknown);
+  const tries = 3;
+  for (let attempt = 1; attempt <= tries; attempt += 1) {
+    try {
+      const cv = await fetchCallReadOnlyFunction({
+        contractAddress: opts.contractAddress,
+        contractName: opts.contractName,
+        functionName: opts.functionName,
+        functionArgs: opts.functionArgs,
+        network: STACKS_NETWORK_OBJ,
+        client: { baseUrl: STACKS_API_BASE },
+        senderAddress: opts.senderAddress,
+      });
+      return unwrapCvToValue(cvToValue(cv) as unknown);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : typeof err === "string" ? err : "";
+      const looksRateLimited =
+        message.includes("429") ||
+        message.toLowerCase().includes("too many requests");
+
+      if (!looksRateLimited || attempt >= tries) throw err;
+      await sleep(250 * attempt);
+    }
+  }
+
+  return null;
 }
 
 async function getContractOwner(): Promise<string | null> {

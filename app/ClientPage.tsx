@@ -1225,7 +1225,7 @@ export default function ClientPage() {
                       <span>
                         {infernoUri
                           ? "Configured"
-                          : "Not configured (owner must set the badge URI on-chain)"}
+                          : "Not loaded / not configured"}
                       </span>
                     </div>
                     {featuredDrops.inferno ? (
@@ -1273,7 +1273,7 @@ export default function ClientPage() {
                       <span>
                         {stormUri
                           ? "Configured"
-                          : "Not configured (owner must set the badge URI on-chain)"}
+                          : "Not loaded / not configured"}
                       </span>
                     </div>
                     {featuredDrops.storm ? (
