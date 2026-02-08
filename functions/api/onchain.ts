@@ -257,23 +257,6 @@ async function getHoldingsTokenIds(sender: string): Promise<number[]> {
   return tokenIds;
 }
 
-async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-  const results: R[] = new Array(items.length);
-  let idx = 0;
-
-  const workers = new Array(Math.min(limit, items.length)).fill(null).map(async () => {
-    while (true) {
-      const current = idx;
-      idx += 1;
-      if (current >= items.length) return;
-      results[current] = await fn(items[current]);
-    }
-  });
-
-  await Promise.all(workers);
-  return results;
-}
-
 async function buildSnapshot(sender: string | null): Promise<OnChainSnapshot> {
   const caller = CONTRACT_ADDRESS;
 
@@ -390,7 +373,7 @@ async function buildSnapshot(sender: string | null): Promise<OnChainSnapshot> {
       canClaim = neverClaimed ? true : currentDay > lastClaimDay;
     }
 
-    const kindsToCheck = BADGE_MILESTONE_KINDS;
+    const kindsToCheck = [...BADGE_MILESTONE_KINDS, INFERNO_KIND, STORM_KIND];
 
     try {
       const hasResults = await Promise.all(
@@ -448,43 +431,14 @@ async function buildSnapshot(sender: string | null): Promise<OnChainSnapshot> {
 
     const tokenIds = await getHoldingsTokenIds(sender);
     if (tokenIds.length > 0) {
-      const tokenInfo = await mapLimit(tokenIds, 5, async (tokenId) => {
-        const [kindValue, uriValue] = await Promise.all([
-          callReadOnly({
-            contractAddress: CONTRACT_ADDRESS,
-            contractName: CONTRACT_NAME,
-            functionName: "get-badge-kind",
-            functionArgs: [uintCV(tokenId)],
-            senderAddress: caller,
-          }).catch(() => null),
-          callReadOnly({
-            contractAddress: CONTRACT_ADDRESS,
-            contractName: CONTRACT_NAME,
-            functionName: "get-token-uri",
-            functionArgs: [uintCV(tokenId)],
-            senderAddress: caller,
-          }).catch(() => null),
-        ]);
-
-        const kindNum = toNum(kindValue);
-        const metadataUri = typeof uriValue === "string" ? uriValue : null;
-        return { tokenId, kind: kindNum, metadataUri };
-      });
-
-      const badgeKinds = new Set<number>(BADGE_MILESTONE_KINDS);
+      // Avoid per-token contract reads (can exceed Cloudflare subrequest limits).
+      // We only need token ids here; kinds/uris are optional and can be enriched client-side if needed.
       const badgeTokenIdSet = new Set<number>(
         Object.values(badgeTokenIds).filter((v): v is number => typeof v === "number" && Number.isFinite(v))
       );
-      const badgeUriSet = new Set<string>(
-        Object.values(badgeUris).filter((v): v is string => typeof v === "string" && v.length > 0)
-      );
-
-      collectiblesTokenInfo = tokenInfo.filter((info) => {
-        if (badgeTokenIdSet.has(info.tokenId)) return false;
-        if (info.kind !== null && badgeKinds.has(info.kind)) return false;
-        if (info.metadataUri && badgeUriSet.has(info.metadataUri)) return false;
-        return true;
-      });
+      collectiblesTokenInfo = tokenIds
+        .filter((tokenId) => !badgeTokenIdSet.has(tokenId))
+        .map((tokenId) => ({ tokenId, kind: null, metadataUri: null }));
     }
   }
 

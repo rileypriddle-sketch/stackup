@@ -257,48 +257,10 @@ export default function ClientPage() {
       setCollectiblesStatus("loading");
       try {
         if (tokenInfo.length === 0) {
-          setFeaturedDrops({ inferno: null, storm: null });
           setCollectibles([]);
           setCollectiblesStatus("loaded");
           return;
         }
-
-        // Feature the two paid drops so they don't show up twice (once as a drop tile, once in the owned list).
-        const infernoOwnedRaw = tokenInfo
-          .filter(
-            (t) =>
-              t.kind === INFERNO_PULSE.kind ||
-              (t.metadataUri?.endsWith(INFERNO_PULSE.metadataCid) ?? false)
-          )
-          .sort((a, b) => b.tokenId - a.tokenId)[0];
-        const stormOwnedRaw = tokenInfo
-          .filter(
-            (t) =>
-              t.kind === STORM_ASSASIN.kind ||
-              (t.metadataUri?.endsWith(STORM_ASSASIN.metadataCid) ?? false)
-          )
-          .sort((a, b) => b.tokenId - a.tokenId)[0];
-
-        setFeaturedDrops({
-          inferno: infernoOwnedRaw
-            ? {
-                tokenId: infernoOwnedRaw.tokenId,
-                kind: infernoOwnedRaw.kind,
-                name: INFERNO_PULSE.name,
-                imageUrl: INFERNO_PULSE.localImagePath,
-                metadataUri: infernoOwnedRaw.metadataUri,
-              }
-            : null,
-          storm: stormOwnedRaw
-            ? {
-                tokenId: stormOwnedRaw.tokenId,
-                kind: stormOwnedRaw.kind,
-                name: STORM_ASSASIN.name,
-                imageUrl: STORM_ASSASIN.localImagePath,
-                metadataUri: stormOwnedRaw.metadataUri,
-              }
-            : null,
-        });
 
         const remaining = tokenInfo.filter((t) => {
           if (
@@ -361,9 +323,7 @@ export default function ClientPage() {
             }
           }
 
-          if (!imageUrl) {
-            imageUrl = await resolveLocalNftImage(info.tokenId, info.kind);
-          }
+          if (!imageUrl) imageUrl = await resolveLocalNftImage(info.tokenId, info.kind);
 
           collectibleItems.push({
             tokenId: info.tokenId,
@@ -522,6 +482,36 @@ export default function ClientPage() {
           setBadgeTokenIds(d.badgeTokenIds ?? {});
 
           if (sender) {
+            const infernoTokenId =
+              typeof d.badgeTokenIds?.[INFERNO_PULSE.kind] === "number"
+                ? d.badgeTokenIds[INFERNO_PULSE.kind]
+                : null;
+            const stormTokenId =
+              typeof d.badgeTokenIds?.[STORM_ASSASIN.kind] === "number"
+                ? d.badgeTokenIds[STORM_ASSASIN.kind]
+                : null;
+
+            setFeaturedDrops({
+              inferno: infernoTokenId
+                ? {
+                    tokenId: infernoTokenId,
+                    kind: INFERNO_PULSE.kind,
+                    name: INFERNO_PULSE.name,
+                    imageUrl: INFERNO_PULSE.localImagePath,
+                    metadataUri: d.infernoUri,
+                  }
+                : null,
+              storm: stormTokenId
+                ? {
+                    tokenId: stormTokenId,
+                    kind: STORM_ASSASIN.kind,
+                    name: STORM_ASSASIN.name,
+                    imageUrl: STORM_ASSASIN.localImagePath,
+                    metadataUri: d.stormUri,
+                  }
+                : null,
+            });
+
             await hydrateCollectiblesFromTokenInfo(d.collectiblesTokenInfo ?? []);
           } else {
             setFeaturedDrops({ inferno: null, storm: null });
