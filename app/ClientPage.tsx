@@ -338,7 +338,6 @@ export default function ClientPage() {
         setCollectibles(collectibleItems);
         setCollectiblesStatus("loaded");
       } catch {
-        setFeaturedDrops({ inferno: null, storm: null });
         setCollectibles([]);
         setCollectiblesStatus("error");
       }
