@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { connect, disconnect, openContractCall, request } from "@stacks/connect";
 import { STACKS_MAINNET, STACKS_TESTNET } from "@stacks/network";
 import {
@@ -136,6 +136,9 @@ export default function ClientPage() {
     storm: OwnedCollectible | null;
   }>({ inferno: null, storm: null });
   const [didAutoForceRefresh, setDidAutoForceRefresh] = useState<boolean>(false);
+  const inFlightOnChain = useRef<{ key: string; promise: Promise<void> } | null>(
+    null
+  );
   const [nftOverrides, setNftOverrides] = useState<NftOverrides>({
     byTokenId: {},
     byKind: {},
@@ -398,7 +401,6 @@ export default function ClientPage() {
       setWalletAddress(nextAddress);
       if (nextAddress) {
         setStatus("Wallet connected");
-        fetchOnChain(nextAddress);
       } else {
         setStatus("Connected");
         setError(
@@ -455,80 +457,100 @@ export default function ClientPage() {
 
       const sender = (senderOverride || walletAddress || "").trim();
 
-      try {
-        const url = new URL("/api/onchain", window.location.origin);
-        if (sender) url.searchParams.set("sender", sender);
-        if (opts?.force) url.searchParams.set("force", "1");
+      const url = new URL("/api/onchain", window.location.origin);
+      if (sender) url.searchParams.set("sender", sender);
+      if (opts?.force) url.searchParams.set("force", "1");
+      const requestKey = url.toString();
 
-        const res = await fetch(url.toString());
-        const body = (await res.json()) as unknown;
+      // Dedupe identical in-flight requests (connectWallet + useEffect, rapid re-renders, etc).
+      // This is especially noticeable when you compare "direct call" (1 request) vs app boot (can be 2).
+      const inFlight = inFlightOnChain.current;
+      if (inFlight && inFlight.key === requestKey) return inFlight.promise;
 
-        if (!res.ok) {
-          const msg =
-            typeof body === "object" && body !== null && "error" in body
-              ? String((body as { error?: unknown }).error ?? `HTTP ${res.status}`)
-              : `HTTP ${res.status}`;
-          throw new Error(msg);
+      const promise = (async () => {
+        try {
+          const res = await fetch(requestKey);
+          const body = (await res.json()) as unknown;
+
+          if (!res.ok) {
+            const msg =
+              typeof body === "object" && body !== null && "error" in body
+                ? String(
+                    (body as { error?: unknown }).error ?? `HTTP ${res.status}`
+                  )
+                : `HTTP ${res.status}`;
+            throw new Error(msg);
+          }
+
+          const parsed = body as OnChainApiOk | OnChainApiErr;
+          if (!parsed || typeof parsed !== "object" || !("ok" in parsed)) {
+            throw new Error("Invalid on-chain response");
+          }
+          if (!parsed.ok) {
+            throw new Error(parsed.error || "On-chain request failed");
+          }
+
+          const d = parsed.data;
+
+          setContractOwner(d.contractOwner);
+          setMilestones(d.milestones);
+          if (Array.isArray(d.milestones) && d.milestones.length > 0) {
+            setAdminMilestones(d.milestones.join(","));
+          }
+
+          setInfernoFeeUstx(d.infernoFeeUstx);
+          setInfernoUri(d.infernoUri);
+          setStormFeeUstx(d.stormFeeUstx);
+          setStormUri(d.stormUri);
+
+          setStreak(d.streak);
+          setLastClaimLabel(
+            typeof d.lastClaimLabel === "string" ? d.lastClaimLabel : "—"
+          );
+
+          setBadgeSupport(d.badgeSupport);
+          setHasBadge(d.hasBadge);
+          setBadgeStatus(d.badgeStatus ?? {});
+          setBadgeTokenIds(d.badgeTokenIds ?? {});
+
+          if (sender) {
+            await hydrateCollectiblesFromTokenInfo(d.collectiblesTokenInfo ?? []);
+          } else {
+            setFeaturedDrops({ inferno: null, storm: null });
+            setCollectibles([]);
+            setCollectiblesStatus("idle");
+          }
+
+          const cached = Boolean(parsed.cached);
+          setStatus(cached ? "On-chain data loaded" : "On-chain data updated");
+
+          // Self-heal if we ever cached an incomplete snapshot (e.g. temporary upstream failures).
+          const looksIncomplete =
+            (d.infernoFeeUstx === null &&
+              d.stormFeeUstx === null &&
+              !Array.isArray(d.milestones)) ||
+            (sender && d.streak === null);
+          if (cached && looksIncomplete && !didAutoForceRefresh) {
+            setDidAutoForceRefresh(true);
+            setTimeout(() => {
+              fetchOnChain(sender || undefined, { force: true }).catch(() => {
+                // ignore
+              });
+            }, 250);
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Unknown error";
+          setError(`Failed to load on-chain data: ${message}`);
         }
+      })();
 
-        const parsed = body as OnChainApiOk | OnChainApiErr;
-        if (!parsed || typeof parsed !== "object" || !("ok" in parsed)) {
-          throw new Error("Invalid on-chain response");
+      inFlightOnChain.current = { key: requestKey, promise };
+      promise.finally(() => {
+        if (inFlightOnChain.current?.promise === promise) {
+          inFlightOnChain.current = null;
         }
-        if (!parsed.ok) {
-          throw new Error(parsed.error || "On-chain request failed");
-        }
-
-        const d = parsed.data;
-
-        setContractOwner(d.contractOwner);
-        setMilestones(d.milestones);
-        if (Array.isArray(d.milestones) && d.milestones.length > 0) {
-          setAdminMilestones(d.milestones.join(","));
-        }
-
-        setInfernoFeeUstx(d.infernoFeeUstx);
-        setInfernoUri(d.infernoUri);
-        setStormFeeUstx(d.stormFeeUstx);
-        setStormUri(d.stormUri);
-
-        setStreak(d.streak);
-        setLastClaimLabel(typeof d.lastClaimLabel === "string" ? d.lastClaimLabel : "—");
-
-        setBadgeSupport(d.badgeSupport);
-        setHasBadge(d.hasBadge);
-        setBadgeStatus(d.badgeStatus ?? {});
-        setBadgeTokenIds(d.badgeTokenIds ?? {});
-
-        if (sender) {
-          await hydrateCollectiblesFromTokenInfo(d.collectiblesTokenInfo ?? []);
-        } else {
-          setFeaturedDrops({ inferno: null, storm: null });
-          setCollectibles([]);
-          setCollectiblesStatus("idle");
-        }
-
-        const cached = Boolean(parsed.cached);
-        setStatus(cached ? "On-chain data loaded" : "On-chain data updated");
-
-        // Self-heal if we ever cached an incomplete snapshot (e.g. temporary upstream failures).
-        const looksIncomplete =
-          (d.infernoFeeUstx === null &&
-            d.stormFeeUstx === null &&
-            !Array.isArray(d.milestones)) ||
-          (sender && d.streak === null);
-        if (cached && looksIncomplete && !didAutoForceRefresh) {
-          setDidAutoForceRefresh(true);
-          setTimeout(() => {
-            fetchOnChain(sender || undefined, { force: true }).catch(() => {
-              // ignore
-            });
-          }, 250);
-        }
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Unknown error";
-        setError(`Failed to load on-chain data: ${message}`);
-      }
+      });
+      return promise;
     },
     [didAutoForceRefresh, hydrateCollectiblesFromTokenInfo, walletAddress]
   );
