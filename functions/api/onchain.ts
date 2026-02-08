@@ -29,9 +29,11 @@ type OnChainSnapshot = {
   infernoUri: string | null;
   stormFeeUstx: number | null;
   stormUri: string | null;
+  currentDay: number | null;
   streak: number | null;
   lastClaimDay: number | null;
   lastClaimLabel: string;
+  canClaim: boolean | null;
   badgeSupport: BadgeSupport;
   hasBadge: boolean | null;
   badgeStatus: Record<number, boolean>;
@@ -261,7 +263,7 @@ async function buildSnapshot(sender: string | null): Promise<OnChainSnapshot> {
 
   const contractOwnerPromise = getContractOwner();
 
-  const [milestonesValue, infernoFeeValue, stormFeeValue, infernoUriValue, stormUriValue] =
+  const [milestonesValue, infernoFeeValue, stormFeeValue, infernoUriValue, stormUriValue, currentDayValue] =
     await Promise.all([
       callReadOnly({
         contractAddress: CONTRACT_ADDRESS,
@@ -298,6 +300,13 @@ async function buildSnapshot(sender: string | null): Promise<OnChainSnapshot> {
         functionArgs: [uintCV(STORM_KIND)],
         senderAddress: caller,
       }).catch(() => null),
+      callReadOnly({
+        contractAddress: CONTRACT_ADDRESS,
+        contractName: CONTRACT_NAME,
+        functionName: "get-current-day",
+        functionArgs: [],
+        senderAddress: caller,
+      }).catch(() => null),
     ]);
 
   const milestones =
@@ -311,6 +320,7 @@ async function buildSnapshot(sender: string | null): Promise<OnChainSnapshot> {
   const stormFeeUstx = toNum(stormFeeValue);
   const infernoUri = typeof infernoUriValue === "string" ? infernoUriValue : null;
   const stormUri = typeof stormUriValue === "string" ? stormUriValue : null;
+  const currentDay = toNum(currentDayValue);
 
   const badgeUrisEntries = await Promise.all(
     BADGE_MILESTONE_KINDS.map(async (kind) => {
@@ -330,6 +340,7 @@ async function buildSnapshot(sender: string | null): Promise<OnChainSnapshot> {
   let streak: number | null = null;
   let lastClaimDay: number | null = null;
   let lastClaimLabel = "—";
+  let canClaim: boolean | null = null;
   let badgeSupport: BadgeSupport = null;
   let hasBadge: boolean | null = null;
   let badgeStatus: Record<number, boolean> = {};
@@ -357,6 +368,11 @@ async function buildSnapshot(sender: string | null): Promise<OnChainSnapshot> {
     streak = toNum(streakValue);
     lastClaimDay = toNum(lastDayValue);
     lastClaimLabel = await resolveLastClaimLabel(lastClaimDay);
+    if (typeof currentDay === "number" && typeof lastClaimDay === "number") {
+      // `get-last-claim-day` defaults to u0, so treat (streak=0,lastClaimDay=0) as "never claimed".
+      const neverClaimed = streak === 0 && lastClaimDay === 0;
+      canClaim = neverClaimed ? true : currentDay > lastClaimDay;
+    }
 
     const kindsToCheck = BADGE_MILESTONE_KINDS;
 
@@ -464,9 +480,11 @@ async function buildSnapshot(sender: string | null): Promise<OnChainSnapshot> {
     infernoUri,
     stormFeeUstx,
     stormUri,
+    currentDay,
     streak,
     lastClaimDay,
     lastClaimLabel,
+    canClaim,
     badgeSupport,
     hasBadge,
     badgeStatus,
@@ -520,7 +538,8 @@ export const onRequestGet = async (context: PagesContext) => {
     context.waitUntil(purgeExpired(context.env.DB));
 
     const data = await buildSnapshot(sender);
-    await setCacheJson(context.env.DB, cacheKey, data, 60 * 60 * 24);
+    const ttlSeconds = sender ? 60 * 60 : 60 * 60 * 24;
+    await setCacheJson(context.env.DB, cacheKey, data, ttlSeconds);
 
     const resp: ApiResponse = { ok: true, cached: false, fetchedAt: Date.now(), data };
     return jsonResponse(resp);

@@ -101,10 +101,13 @@ const ipfsToHttpsCandidates = (uri: string) => {
 
 export default function ClientPage() {
   const [walletAddress, setWalletAddress] = useState<string>("");
+  const [walletHydrated, setWalletHydrated] = useState<boolean>(false);
   const [status, setStatus] = useState<string>("Not connected");
   const [error, setError] = useState<string>("");
   const [streak, setStreak] = useState<number | null>(null);
   const [lastClaimLabel, setLastClaimLabel] = useState<string>("—");
+  const [currentDay, setCurrentDay] = useState<number | null>(null);
+  const [canClaim, setCanClaim] = useState<boolean | null>(null);
   const [hasBadge, setHasBadge] = useState<boolean | null>(null);
   const [badgeSupport, setBadgeSupport] = useState<"v1" | "v2" | null>(null);
   const [badgeStatus, setBadgeStatus] = useState<Record<number, boolean>>({});
@@ -182,6 +185,7 @@ export default function ClientPage() {
       setWalletAddress(storedAddress);
       setStatus("Wallet connected");
     }
+    setWalletHydrated(true);
   }, []);
 
   useEffect(() => {
@@ -433,9 +437,11 @@ export default function ClientPage() {
       infernoUri: string | null;
       stormFeeUstx: number | null;
       stormUri: string | null;
+      currentDay: number | null;
       streak: number | null;
       lastClaimDay: number | null;
       lastClaimLabel: string;
+      canClaim: boolean | null;
       badgeSupport: "v1" | "v2" | null;
       hasBadge: boolean | null;
       badgeStatus: Record<number, boolean>;
@@ -503,10 +509,12 @@ export default function ClientPage() {
           setStormFeeUstx(d.stormFeeUstx);
           setStormUri(d.stormUri);
 
+          setCurrentDay(d.currentDay ?? null);
           setStreak(d.streak);
           setLastClaimLabel(
             typeof d.lastClaimLabel === "string" ? d.lastClaimLabel : "—"
           );
+          setCanClaim(d.canClaim ?? null);
 
           setBadgeSupport(d.badgeSupport);
           setHasBadge(d.hasBadge);
@@ -784,10 +792,22 @@ export default function ClientPage() {
   };
 
   useEffect(() => {
+    if (!walletHydrated) return;
     fetchOnChain(address || undefined);
-  }, [address, fetchOnChain]);
+  }, [address, fetchOnChain, walletHydrated]);
 
   const claimStreak = async () => {
+    if (!address) {
+      setError("Connect wallet first.");
+      setStatus("Not connected");
+      return;
+    }
+    if (canClaim === false) {
+      setError("Already claimed for the current day.");
+      setStatus("Already claimed");
+      scheduleRefresh(address || undefined);
+      return;
+    }
     setError("");
     setStatus("Submitting claim...");
 
@@ -1014,8 +1034,13 @@ export default function ClientPage() {
               </div>
             </div>
             <div className={styles.heroActions}>
-              <button className={styles.button} onClick={claimStreak}>
-                Claim Now
+              <button
+                className={styles.button}
+                onClick={claimStreak}
+                disabled={!address || canClaim === false}
+                type="button"
+              >
+                {canClaim === false ? "Claimed Today" : "Claim Now"}
               </button>
             </div>
             <div className={styles.statsRow}>
@@ -1029,6 +1054,12 @@ export default function ClientPage() {
                 <div className={styles.statLabel}>Last claim</div>
                 <div className={styles.statValue}>
                   {lastClaimLabel}
+                </div>
+              </div>
+              <div className={styles.statChip}>
+                <div className={styles.statLabel}>Chain day</div>
+                <div className={styles.statValue}>
+                  {currentDay === null ? "—" : currentDay}
                 </div>
               </div>
               <button
@@ -1191,7 +1222,11 @@ export default function ClientPage() {
                     </div>
                     <div className={styles.dropTileLine}>
                       Metadata:{" "}
-                      <span>{infernoUri ? "Configured" : "Not configured"}</span>
+                      <span>
+                        {infernoUri
+                          ? "Configured"
+                          : "Not configured (owner must set the badge URI on-chain)"}
+                      </span>
                     </div>
                     {featuredDrops.inferno ? (
                       <div className={styles.dropTileLine}>
@@ -1235,7 +1270,11 @@ export default function ClientPage() {
                     </div>
                     <div className={styles.dropTileLine}>
                       Metadata:{" "}
-                      <span>{stormUri ? "Configured" : "Not configured"}</span>
+                      <span>
+                        {stormUri
+                          ? "Configured"
+                          : "Not configured (owner must set the badge URI on-chain)"}
+                      </span>
                     </div>
                     {featuredDrops.storm ? (
                       <div className={styles.dropTileLine}>

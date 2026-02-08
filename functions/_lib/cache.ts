@@ -28,9 +28,18 @@ async function ensureCacheTable(db: D1DatabaseLike): Promise<void> {
     .run();
 }
 
+function getErrMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  if (typeof err === "object" && err !== null && "message" in err) {
+    const msg = (err as { message?: unknown }).message;
+    if (typeof msg === "string") return msg;
+  }
+  return "";
+}
+
 function isMissingTableError(err: unknown): boolean {
-  const msg =
-    err instanceof Error ? err.message : typeof err === "string" ? err : "";
+  const msg = getErrMessage(err);
   return msg.includes("no such table: kv_cache");
 }
 
